@@ -32,6 +32,155 @@ import { VerdictCard } from './components/VerdictCard';
 import { AuditLedger } from './components/AuditLedger';
 import { BenchmarkModal } from './components/BenchmarkModal';
 
+/**
+ * Client-side heuristic invoice parser for custom text.
+ * Extracts vendor name, invoice number, prices, quantities from raw text
+ * so that different inputs produce genuinely different outputs.
+ */
+function parseCustomInvoiceText(text: string): ExtractedInvoice {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  let vendorName = 'Custom Vendor';
+  let invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
+  let invoiceDate = new Date().toISOString().split('T')[0];
+  let currency = 'USD';
+
+  // Extract header fields from key-value patterns
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+    if (lower.startsWith('vendor:') || lower.startsWith('issuer:') || lower.startsWith('supplier:') || lower.startsWith('from:')) {
+      vendorName = line.split(':').slice(1).join(':').trim() || vendorName;
+    }
+    if (lower.startsWith('invoice:') || lower.startsWith('invoice no') || lower.startsWith('inv:') || lower.startsWith('invoice #')) {
+      invoiceNumber = line.split(':').slice(1).join(':').trim() || invoiceNumber;
+    }
+    if (lower.startsWith('date:') || lower.startsWith('invoice date:')) {
+      invoiceDate = line.split(':').slice(1).join(':').trim() || invoiceDate;
+    }
+    if (lower.startsWith('currency:')) {
+      currency = line.split(':').slice(1).join(':').trim().toUpperCase() || currency;
+    }
+  }
+
+  // Extract line items from patterns like "Quantity: 500", "Price: $12.50", etc.
+  const lineItems: ExtractedInvoice['lineItems'] = [];
+  let currentItem: { desc?: string; qty?: number; unit?: string; price?: number; carbon?: number | null } = {};
+  let itemIndex = 0;
+
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+
+    // Detect a numbered item line like "1. Description" or "- Description"
+    const itemMatch = line.match(/^(?:\d+[\.\)]\s*|-\s*)(.+)/);
+    if (itemMatch && !lower.includes('quantity') && !lower.includes('price') && !lower.includes('total') && !lower.includes('carbon')) {
+      // Flush previous item if it has enough data
+      if (currentItem.desc && currentItem.qty && currentItem.price) {
+        itemIndex++;
+        lineItems.push({
+          id: `item-${itemIndex}`,
+          description: currentItem.desc,
+          category: '',
+          quantity: currentItem.qty,
+          unit: currentItem.unit || 'unit',
+          billedUnitPrice: currentItem.price,
+          lineTotal: currentItem.qty * currentItem.price,
+          claimedCarbonKg: currentItem.carbon ?? null,
+          sustainabilityClaims: [],
+          certificationRefs: []
+        });
+      }
+      currentItem = { desc: itemMatch[1].trim() };
+      continue;
+    }
+
+    // Extract quantity
+    const qtyMatch = line.match(/(?:quantity|qty)[:\s]*([0-9,]+(?:\.\d+)?)\s*(\w+)?/i);
+    if (qtyMatch) {
+      currentItem.qty = parseFloat(qtyMatch[1].replace(/,/g, ''));
+      if (qtyMatch[2]) currentItem.unit = qtyMatch[2];
+    }
+
+    // Extract unit price
+    const priceMatch = line.match(/(?:unit\s*price|price|rate)[:\s]*\$?([0-9,]+(?:\.\d+)?)/i);
+    if (priceMatch) {
+      currentItem.price = parseFloat(priceMatch[1].replace(/,/g, ''));
+    }
+
+    // Extract billed unit price (format "Billed Unit Price: $26.27")
+    const billedMatch = line.match(/(?:billed)[^:]*[:\s]*\$?([0-9,]+(?:\.\d+)?)/i);
+    if (billedMatch && !currentItem.price) {
+      currentItem.price = parseFloat(billedMatch[1].replace(/,/g, ''));
+    }
+
+    // Extract unit from patterns like "500 km", "1000 L"
+    const unitMatch = line.match(/([0-9,]+)\s+(unit|units|L|liters?|km|rolls?|pcs|ea|kg|gallons?|m|meters?)\b/i);
+    if (unitMatch && !currentItem.unit) {
+      currentItem.unit = unitMatch[2];
+    }
+
+    // Extract carbon
+    const carbonMatch = line.match(/(?:carbon|co2|co₂|emissions?)[:\s]*([0-9,]+(?:\.\d+)?)\s*(?:kg)?/i);
+    if (carbonMatch) {
+      currentItem.carbon = parseFloat(carbonMatch[1].replace(/,/g, ''));
+    }
+  }
+
+  // Flush last item
+  if (currentItem.desc && currentItem.qty && currentItem.price) {
+    itemIndex++;
+    lineItems.push({
+      id: `item-${itemIndex}`,
+      description: currentItem.desc,
+      category: '',
+      quantity: currentItem.qty,
+      unit: currentItem.unit || 'unit',
+      billedUnitPrice: currentItem.price,
+      lineTotal: currentItem.qty * currentItem.price,
+      claimedCarbonKg: currentItem.carbon ?? null,
+      sustainabilityClaims: [],
+      certificationRefs: []
+    });
+  }
+
+  // If we found nothing, create a single item from total
+  if (lineItems.length === 0) {
+    let totalAmount = 0;
+    for (const line of lines) {
+      const totalMatch = line.match(/(?:total|amount)[:\s]*\$?([0-9,]+(?:\.\d+)?)/i);
+      if (totalMatch) {
+        totalAmount = parseFloat(totalMatch[1].replace(/,/g, '')) || 0;
+      }
+    }
+    lineItems.push({
+      id: 'item-1',
+      description: 'Extracted line item (heuristic parse)',
+      category: '',
+      quantity: 1,
+      unit: 'unit',
+      billedUnitPrice: totalAmount || 100,
+      lineTotal: totalAmount || 100,
+      claimedCarbonKg: null,
+      sustainabilityClaims: [],
+      certificationRefs: []
+    });
+  }
+
+  const totalAmount = lineItems.reduce((sum, li) => sum + li.lineTotal, 0);
+  const totalCarbonKg = lineItems.reduce((sum, li) => sum + (li.claimedCarbonKg || 0), 0);
+
+  return {
+    vendorName,
+    invoiceNumber,
+    invoiceDate,
+    currency,
+    lineItems,
+    subtotal: totalAmount,
+    totalAmount,
+    claimedTotalCarbonKg: totalCarbonKg > 0 ? totalCarbonKg : null,
+    extractionSource: 'DEMO_FIXTURE',
+    isFixture: true
+  };
+}
+
 export const App: React.FC = () => {
   // Scenario & Payload State
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('clean');
@@ -257,11 +406,15 @@ export const App: React.FC = () => {
             { stageNumber: 4, name: 'Tiered Decision Routing', state: 'QUARANTINED', elapsedMs: 1, summary: 'Verdict: QUARANTINED (Adversarial threat neutralized).' },
           ]);
         } else {
-          // Identify matching scenario fixture or extract
-          const matchedScenario = DEMO_SCENARIOS.find(s => s.id === selectedScenarioId) || DEMO_SCENARIOS[0];
+          // Identify matching scenario fixture or parse custom text
+          const lower = rawPayload.toLowerCase();
           let dummyExt: ExtractedInvoice;
 
-          if (selectedScenarioId === 'anomaly' || rawPayload.toLowerCase().includes('apex')) {
+          // Only use fixtures when BOTH vendor name AND invoice number match a known demo scenario
+          const isApexScenario = (lower.includes('apex') && lower.includes('aic-4409'));
+          const isCleanScenario = (lower.includes('ecopack') && lower.includes('ep-8921'));
+
+          if (isApexScenario) {
             dummyExt = {
               vendorName: 'Apex Industrial Chemicals Corp',
               invoiceNumber: 'INV-2026-AIC-4409',
@@ -287,7 +440,7 @@ export const App: React.FC = () => {
               extractionSource: 'DEMO_FIXTURE',
               isFixture: true
             };
-          } else {
+          } else if (isCleanScenario) {
             dummyExt = {
               vendorName: 'EcoPack Logistics GmbH',
               invoiceNumber: 'INV-2026-EP-8921',
@@ -325,6 +478,9 @@ export const App: React.FC = () => {
               extractionSource: 'DEMO_FIXTURE',
               isFixture: true
             };
+          } else {
+            // Custom text — parse heuristically from the actual pasted content
+            dummyExt = parseCustomInvoiceText(rawPayload);
           }
 
           const ver = verifyInvoiceLineItems(dummyExt);
@@ -339,9 +495,11 @@ export const App: React.FC = () => {
             startTime: new Date().toISOString(),
             endTime: new Date().toISOString(),
             tokenSavingsPercent: sec.piiRedactedCount > 0 ? 15 : null,
-            tokensConsumed: 420,
+            tokensConsumed: dummyExt.isFixture ? 0 : 420,
             baselineTokensWithoutGate: 650,
-            modelTier: dec.isEscalated ? 'gemini-2.5-pro (Escalated Reasoning)' : 'gemini-2.5-flash',
+            modelTier: dummyExt.isFixture
+              ? 'local-heuristic-parser (backend unavailable)'
+              : dec.isEscalated ? 'gemini-2.5-pro (Escalated Reasoning)' : 'gemini-2.5-flash',
             securityGateState: gateEnabled
           });
 

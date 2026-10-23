@@ -3,7 +3,6 @@ dotenv.config();
 
 import { GoogleGenAI } from '@google/genai';
 import { ExtractedInvoice, RawLineItem } from '../src/types/audit';
-import { DEMO_SCENARIOS } from '../src/constants/scenarios';
 
 const API_KEY = process.env.GEMINI_API_KEY || '';
 
@@ -21,13 +20,16 @@ export function isGeminiConfigured(): boolean {
 }
 
 /**
- * Deterministic fallback extractor for demo scenarios when API key is missing or quota is exhausted.
- * This guarantees the prototype is 100% operational for evaluation while honestly distinguishing fixtures from live AI.
+ * Deterministic fallback extractor for the three official demo scenarios ONLY.
+ * Matches are narrow: they require BOTH the vendor name AND the invoice number
+ * to be present in the text. This prevents generic custom documents from
+ * accidentally matching a fixture.
  */
 function getDeterministicScenarioFixture(sanitizedText: string): ExtractedInvoice | null {
   const lower = sanitizedText.toLowerCase();
 
-  if (lower.includes('ecopack') || lower.includes('ep-8921')) {
+  // Scenario 01: EcoPack — requires BOTH vendor name AND invoice number
+  if ((lower.includes('ecopack') || lower.includes('eco pack')) && lower.includes('ep-8921')) {
     return {
       vendorName: 'EcoPack Logistics GmbH',
       invoiceNumber: 'INV-2026-EP-8921',
@@ -70,7 +72,8 @@ function getDeterministicScenarioFixture(sanitizedText: string): ExtractedInvoic
     };
   }
 
-  if (lower.includes('apex') || lower.includes('aic-4409') || lower.includes('solvent')) {
+  // Scenario 02: Apex — requires BOTH vendor name AND invoice number
+  if ((lower.includes('apex') || lower.includes('apex industrial')) && lower.includes('aic-4409')) {
     return {
       vendorName: 'Apex Industrial Chemicals Corp',
       invoiceNumber: 'INV-2026-AIC-4409',
@@ -101,7 +104,8 @@ function getDeterministicScenarioFixture(sanitizedText: string): ExtractedInvoic
     };
   }
 
-  if (lower.includes('shadowcorp') || lower.includes('shdw-666')) {
+  // Scenario 03: ShadowCorp — requires BOTH vendor name AND invoice number
+  if ((lower.includes('shadowcorp') || lower.includes('shadow corp')) && lower.includes('shdw-666')) {
     return {
       vendorName: 'ShadowCorp Freight & Logistics',
       invoiceNumber: 'INV-2026-SHDW-666',
@@ -291,8 +295,7 @@ export async function escalateToGeminiPro(
     };
   }
 
-  try {
-    const prompt = `Perform an advanced enterprise procurement risk analysis on the following document where deterministic verification flagged: "${anomalySummary}".
+  const prompt = `Perform an advanced enterprise procurement risk analysis on the following document where deterministic verification flagged: "${anomalySummary}".
 Document:
 """
 ${sanitizedText}
@@ -303,77 +306,162 @@ Analyze:
 3. Recommended procurement negotiation counter-measures.
 Keep response concise, strictly professional, and evidence-focused.`;
 
-    const response = await aiClient.models.generateContent({
-      model: 'gemini-2.5-pro',
-      contents: [{ text: prompt }],
-      config: {
-        systemInstruction: 'You are an expert enterprise ESG auditor and strategic procurement risk analyst.',
-        temperature: 0.2,
-      }
-    });
+  // Try gemini-3.1-pro-preview first; if unavailable/quota-limited, fall back to gemini-2.5-flash with deep reasoning
+  for (const modelCandidate of ['gemini-3.1-pro-preview', 'gemini-2.5-flash']) {
+    try {
+      const response = await aiClient.models.generateContent({
+        model: modelCandidate,
+        contents: [{ text: prompt }],
+        config: {
+          systemInstruction: 'You are an expert enterprise ESG auditor and strategic procurement risk analyst.',
+          temperature: 0.2,
+        }
+      });
 
-    return {
-      proAnalysis: response.text || 'Deep analysis completed.',
-      escalatedSuccess: true,
-      modelUsed: 'gemini-2.5-pro'
-    };
-  } catch (err) {
-    console.warn('Gemini 2.5 Pro escalation failed, preserving deterministic findings:', err);
-    return {
-      proAnalysis: `Deterministic Escalation: Anomaly detected (${anomalySummary}). Gemini 2.5 Pro escalation call timed out or failed. Deterministic policy decision preserved.`,
-      escalatedSuccess: false,
-      modelUsed: 'gemini-2.5-flash (escalation fallback)'
-    };
+      if (response && response.text) {
+        return {
+          proAnalysis: response.text,
+          escalatedSuccess: true,
+          modelUsed: modelCandidate === 'gemini-2.5-flash' ? 'gemini-2.5-flash (deep-tier)' : modelCandidate
+        };
+      }
+    } catch (modelErr: any) {
+      console.warn(`Model candidate ${modelCandidate} failed (${modelErr?.message || modelErr?.status}), trying next candidate...`);
+    }
   }
+
+  // Graceful fallback if both fail
+  return {
+    proAnalysis: `Deterministic Escalation: Anomaly detected (${anomalySummary}). Model escalation tier reached quota limit. Deterministic policy decision preserved.`,
+    escalatedSuccess: false,
+    modelUsed: 'deterministic-rules-engine (escalation fallback)'
+  };
 }
 
 /**
- * Generic heuristic invoice parser for arbitrary pasted text when no AI is active
+ * Improved heuristic invoice parser for custom pasted text when no AI is active.
+ * Extracts actual vendor, invoice number, line items with prices and quantities from
+ * recognizable text patterns so different inputs produce different outputs.
  */
 function parseGenericInvoiceText(text: string): ExtractedInvoice {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  let vendorName = 'Parsed Vendor';
-  let invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
-  let totalAmount = 1000.0;
+  let vendorName = 'Custom Vendor';
+  let invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
+  let invoiceDate = new Date().toISOString().split('T')[0];
+  let currency = 'USD';
 
+  // Extract header fields
   for (const line of lines) {
-    if (line.toLowerCase().startsWith('vendor:') || line.toLowerCase().startsWith('issuer:')) {
-      vendorName = line.split(':')[1]?.trim() || vendorName;
+    const lower = line.toLowerCase();
+    if (lower.startsWith('vendor:') || lower.startsWith('issuer:') || lower.startsWith('supplier:') || lower.startsWith('from:')) {
+      vendorName = line.split(':').slice(1).join(':').trim() || vendorName;
     }
-    if (line.toLowerCase().startsWith('invoice:')) {
-      invoiceNumber = line.split(':')[1]?.trim() || invoiceNumber;
+    if (lower.startsWith('invoice:') || lower.startsWith('invoice no') || lower.startsWith('inv:')) {
+      invoiceNumber = line.split(':').slice(1).join(':').trim() || invoiceNumber;
     }
-    if (line.toLowerCase().includes('total')) {
-      const match = line.match(/\$?([0-9,]+(?:\.[0-9]{2})?)/);
-      if (match) {
-        totalAmount = parseFloat(match[1].replace(/,/g, '')) || totalAmount;
-      }
+    if (lower.startsWith('date:') || lower.startsWith('invoice date:')) {
+      invoiceDate = line.split(':').slice(1).join(':').trim() || invoiceDate;
+    }
+    if (lower.startsWith('currency:')) {
+      currency = line.split(':').slice(1).join(':').trim().toUpperCase() || currency;
     }
   }
+
+  // Extract line items from numbered patterns
+  const lineItems: RawLineItem[] = [];
+  let currentItem: { desc?: string; qty?: number; unit?: string; price?: number; carbon?: number | null } = {};
+  let itemIndex = 0;
+
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+
+    const itemMatch = line.match(/^(?:\d+[\.\)]\s*|-\s*)(.+)/);
+    if (itemMatch && !lower.includes('quantity') && !lower.includes('price') && !lower.includes('total') && !lower.includes('carbon')) {
+      if (currentItem.desc && currentItem.qty && currentItem.price) {
+        itemIndex++;
+        lineItems.push({
+          id: `item-${itemIndex}`,
+          description: currentItem.desc,
+          category: '',
+          quantity: currentItem.qty,
+          unit: currentItem.unit || 'unit',
+          billedUnitPrice: currentItem.price,
+          lineTotal: currentItem.qty * currentItem.price,
+          claimedCarbonKg: currentItem.carbon ?? null,
+          sustainabilityClaims: [],
+          certificationRefs: []
+        });
+      }
+      currentItem = { desc: itemMatch[1].trim() };
+      continue;
+    }
+
+    const qtyMatch = line.match(/(?:quantity|qty)[:\s]*([0-9,]+(?:\.\d+)?)\s*(\w+)?/i);
+    if (qtyMatch) {
+      currentItem.qty = parseFloat(qtyMatch[1].replace(/,/g, ''));
+      if (qtyMatch[2]) currentItem.unit = qtyMatch[2];
+    }
+    const priceMatch = line.match(/(?:unit\s*price|price|rate)[:\s]*\$?([0-9,]+(?:\.\d+)?)/i);
+    if (priceMatch) currentItem.price = parseFloat(priceMatch[1].replace(/,/g, ''));
+    const billedMatch = line.match(/(?:billed)[^:]*[:\s]*\$?([0-9,]+(?:\.\d+)?)/i);
+    if (billedMatch && !currentItem.price) currentItem.price = parseFloat(billedMatch[1].replace(/,/g, ''));
+    const unitMatch = line.match(/([0-9,]+)\s+(unit|units|L|liters?|km|rolls?|pcs|ea|kg|gallons?)\b/i);
+    if (unitMatch && !currentItem.unit) currentItem.unit = unitMatch[2];
+    const carbonMatch = line.match(/(?:carbon|co2|co₂|emissions?)[:\s]*([0-9,]+(?:\.\d+)?)\s*(?:kg)?/i);
+    if (carbonMatch) currentItem.carbon = parseFloat(carbonMatch[1].replace(/,/g, ''));
+  }
+
+  // Flush last item
+  if (currentItem.desc && currentItem.qty && currentItem.price) {
+    itemIndex++;
+    lineItems.push({
+      id: `item-${itemIndex}`,
+      description: currentItem.desc,
+      category: '',
+      quantity: currentItem.qty,
+      unit: currentItem.unit || 'unit',
+      billedUnitPrice: currentItem.price,
+      lineTotal: currentItem.qty * currentItem.price,
+      claimedCarbonKg: currentItem.carbon ?? null,
+      sustainabilityClaims: [],
+      certificationRefs: []
+    });
+  }
+
+  // Fallback: create a single item from total
+  if (lineItems.length === 0) {
+    let totalAmount = 0;
+    for (const line of lines) {
+      const totalMatch = line.match(/(?:total|amount)[:\s]*\$?([0-9,]+(?:\.\d+)?)/i);
+      if (totalMatch) totalAmount = parseFloat(totalMatch[1].replace(/,/g, '')) || 0;
+    }
+    lineItems.push({
+      id: 'item-1',
+      description: `Line item (parsed from ${vendorName})`,
+      category: '',
+      quantity: 1,
+      unit: 'unit',
+      billedUnitPrice: totalAmount || 100,
+      lineTotal: totalAmount || 100,
+      claimedCarbonKg: null,
+      sustainabilityClaims: [],
+      certificationRefs: []
+    });
+  }
+
+  const totalAmount = lineItems.reduce((sum, li) => sum + li.lineTotal, 0);
+  const totalCarbonKg = lineItems.reduce((sum, li) => sum + (li.claimedCarbonKg || 0), 0);
 
   return {
     vendorName,
     invoiceNumber,
-    invoiceDate: new Date().toISOString().split('T')[0],
-    currency: 'USD',
-    lineItems: [
-      {
-        id: 'item-1',
-        description: 'Standard Procurement Line Item',
-        category: 'Packaging Materials',
-        quantity: 100,
-        unit: 'unit',
-        billedUnitPrice: totalAmount / 100,
-        lineTotal: totalAmount,
-        claimedCarbonKg: null,
-        sustainabilityClaims: [],
-        certificationRefs: []
-      }
-    ],
+    invoiceDate,
+    currency,
+    lineItems,
     subtotal: totalAmount,
     taxAmount: 0,
     totalAmount,
-    claimedTotalCarbonKg: null,
+    claimedTotalCarbonKg: totalCarbonKg > 0 ? totalCarbonKg : null,
     overallSustainabilityClaims: [],
     certificationReferences: [],
     extractionSource: 'DEMO_FIXTURE',
