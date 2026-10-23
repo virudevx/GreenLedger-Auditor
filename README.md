@@ -200,10 +200,10 @@ npm test
  ✓ tests/decision.test.ts             (3 tests)  — Auto-approve, escalate, quarantine routing
  ✓ tests/ledger.test.ts               (6 tests)  — SHA-256 hashing, chain verification, tamper detection
  ✓ tests/api.test.ts                  (3 tests)  — End-to-end pipeline journey for all 3 scenarios
- ✓ tests/backend-validation.test.ts  (5 tests)  — API validation, rate limiting, model-output normalization
+ ✓ tests/backend-validation.test.ts  (6 tests)  — API validation, rate limiting, file signatures, model-output normalization
 
  Test Files  6 passed (6)
-      Tests  31 passed (31)
+      Tests  32 passed (32)
 ```
 
 ---

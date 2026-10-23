@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { 
   SecurityGateResult, 
   ExtractedInvoice, 
@@ -26,12 +26,19 @@ import {
 import { TelemetryHeader } from './components/TelemetryHeader';
 import { ScenarioSelector } from './components/ScenarioSelector';
 import { DocumentIngestion } from './components/DocumentIngestion';
-import { PipelineStepper } from './components/PipelineStepper';
 import { PrivacyTwinPanel } from './components/PrivacyTwinPanel';
-import { VerdictCard } from './components/VerdictCard';
-import { AuditLedger } from './components/AuditLedger';
-import { BenchmarkModal } from './components/BenchmarkModal';
 import { Sidebar } from './components/Sidebar';
+
+const PipelineStepper = lazy(() => import('./components/PipelineStepper').then(module => ({ default: module.PipelineStepper })));
+const VerdictCard = lazy(() => import('./components/VerdictCard').then(module => ({ default: module.VerdictCard })));
+const AuditLedger = lazy(() => import('./components/AuditLedger').then(module => ({ default: module.AuditLedger })));
+const BenchmarkModal = lazy(() => import('./components/BenchmarkModal').then(module => ({ default: module.BenchmarkModal })));
+
+const AsyncPanelFallback: React.FC = () => (
+  <div className="min-h-[120px] rounded-2xl border border-white/10 bg-surface/70 flex items-center justify-center text-xs text-text-muted font-mono">
+    Loading audit workspace…
+  </div>
+);
 
 /**
  * Client-side heuristic invoice parser for custom text.
@@ -736,10 +743,11 @@ export const App: React.FC = () => {
 
           {/* Right Column: Pipeline Stepper & Audit Verdict Card */}
           <div className="space-y-6">
-            <PipelineStepper stages={stages} />
+            <Suspense fallback={<AsyncPanelFallback />}><PipelineStepper stages={stages} /></Suspense>
 
             {decisionResult && verificationResult && securityResult && extractionResult ? (
               <div id="audit-verdict" aria-live="polite">
+                <Suspense fallback={<AsyncPanelFallback />}>
                 <VerdictCard
                 decision={decisionResult}
                 verification={verificationResult}
@@ -752,6 +760,7 @@ export const App: React.FC = () => {
                 isCommitted={isCommitted}
                 isQuarantined={isQuarantined}
                 />
+                </Suspense>
               </div>
             ) : (
               <div className="bg-surface rounded-card border border-border p-8 text-center space-y-3">
@@ -772,16 +781,18 @@ export const App: React.FC = () => {
 
         {/* Bottom Persistent Immutable Audit Log */}
         <div id="audit-ledger">
-          <AuditLedger entries={ledgerEntries} onClearLedger={clearLedger} />
+          <Suspense fallback={<AsyncPanelFallback />}><AuditLedger entries={ledgerEntries} onClearLedger={clearLedger} /></Suspense>
         </div>
 
       </main>
 
       {/* Benchmark Catalog Modal */}
-      <BenchmarkModal
-        isOpen={isBenchmarkModalOpen}
-        onClose={() => setIsBenchmarkModalOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <BenchmarkModal
+          isOpen={isBenchmarkModalOpen}
+          onClose={() => setIsBenchmarkModalOpen(false)}
+        />
+      </Suspense>
 
       {/* Footer */}
       <footer className="border-t border-border/60 py-4 px-6 text-center text-xs text-text-muted font-mono">

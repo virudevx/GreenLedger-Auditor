@@ -9,7 +9,7 @@ import { verifyInvoiceLineItems, evaluateDecisionPolicy, DEFAULT_VERIFICATION_CO
 import { extractInvoiceWithGemini, escalateToGeminiPro, isGeminiConfigured } from './gemini';
 import { BENCHMARK_CATALOG, BENCHMARK_DATASET_VERSION } from '../src/constants/benchmarks';
 import { ExtractedInvoice } from '../src/types/audit';
-import { createRateLimiter, MAX_RAW_PAYLOAD_LENGTH, parseAuditRequest, validateRawPayload } from './validation';
+import { createRateLimiter, hasValidFileSignature, MAX_RAW_PAYLOAD_LENGTH, parseAuditRequest, validateRawPayload } from './validation';
 
 // Load environment variables from .env
 dotenv.config();
@@ -93,6 +93,10 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
 
     let fileData: { mimeType: string; base64: string } | undefined = undefined;
     if (req.file) {
+      if (!hasValidFileSignature(req.file.mimetype, req.file.buffer)) {
+        res.status(400).json({ success: false, error: 'Uploaded file content does not match its declared document type.' });
+        return;
+      }
       fileData = {
         mimeType: req.file.mimetype,
         base64: req.file.buffer.toString('base64')
@@ -119,6 +123,7 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
 
     // STAGE 1: Pre-Flight Security Gate
     const securityResult = runPreFlightSecurityScan(rawPayload, gateEnabled);
+    const { rawPayload: _rawPayload, ...publicSecurityResult } = securityResult;
 
     // If gate is enabled and injection pattern detected: BLOCK BEFORE MODEL
     if (securityResult.blockedBeforeModel) {
@@ -148,7 +153,7 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
       res.json({
         success: true,
         auditId,
-        security: securityResult,
+        security: publicSecurityResult,
         extraction: emptyExtraction,
         verification,
         decision,
@@ -204,7 +209,7 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
     res.json({
       success: true,
       auditId,
-      security: securityResult,
+      security: publicSecurityResult,
       extraction: extractedInvoice,
       verification,
       decision,

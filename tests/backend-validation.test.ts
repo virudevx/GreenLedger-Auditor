@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createRateLimiter, parseAuditRequest, validateRawPayload } from '../server/validation';
+import { createRateLimiter, hasValidFileSignature, parseAuditRequest, validateRawPayload } from '../server/validation';
 import { normalizeGeminiInvoice } from '../server/gemini';
 
 describe('Backend request validation and abuse controls', () => {
@@ -19,6 +19,13 @@ describe('Backend request validation and abuse controls', () => {
     expect(validateRawPayload('', false)).toContain('Missing');
     expect(validateRawPayload('x'.repeat(250_001), false)).toContain('maximum allowed');
     expect(validateRawPayload('', true)).toBeNull();
+  });
+
+  it('validates file signatures instead of trusting MIME types alone', () => {
+    expect(hasValidFileSignature('application/pdf', new TextEncoder().encode('%PDF-1.7'))).toBe(true);
+    expect(hasValidFileSignature('image/png', new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe(true);
+    expect(hasValidFileSignature('image/png', new TextEncoder().encode('not an image'))).toBe(false);
+    expect(hasValidFileSignature('image/jpeg', new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe(true);
   });
 
   it('limits each client independently and resets expired windows', () => {
