@@ -1,0 +1,88 @@
+# Antigravity Autonomous GitHub Publishing Rules
+
+## Objective
+
+For every completed feature or meaningful bug fix, automatically validate the code, create a local Git commit, and push that commit to the configured GitHub remote without asking me for routine approval.
+
+This workflow applies to this project whenever you implement or fix a feature.
+
+## 1. Repository safety
+
+Before any Git operation:
+
+* Confirm the repository root, current branch, configured remote, and working-tree status.
+* Preserve unrelated user changes and existing Git history.
+* Never reinitialize an existing repository.
+* Never change repository visibility, remotes, or branch protection settings automatically.
+* Never use force-push, mirror-push, history rewriting, destructive resets, or branch deletion.
+* Never push directly to a protected branch or bypass branch protection.
+* If remote history diverges or a merge conflict occurs, stop and report the issue.
+
+## 2. Complete the feature before publishing
+
+After implementing a feature:
+
+1. Review the entire diff and all new files.
+2. Identify the correct test, lint, type-check, and build commands for the project.
+3. Run all applicable checks.
+4. Fix failures where appropriate and rerun the checks.
+5. Never claim a test passed unless it actually passed.
+6. Do not publish incomplete work, temporary debugging changes, or unrelated modifications.
+
+## 3. Security checks
+
+Before staging or publishing:
+
+* Inspect staged, unstaged, and untracked files.
+* Check for API keys, tokens, passwords, private keys, `.env` files, personal data, and credentials.
+* Verify `.gitignore` covers appropriate secrets, local databases, caches, build artifacts, and generated files.
+* Use available secret-scanning tools when possible.
+* Never rely on `.gitignore` alone to detect secrets.
+* Never stage all files indiscriminately.
+* If a secret is detected, a required safety check fails, or a suspicious file cannot be evaluated, do not commit or push. Explain the issue.
+
+## 4. Automatic local commits
+
+Once the feature is complete and all required checks pass:
+
+1. Stage only the reviewed files belonging to the feature.
+2. Inspect the staged diff.
+3. Create a concise commit message using conventional prefixes where appropriate, such as `feat:`, `fix:`, `test:`, or `docs:`.
+4. Verify the commit hash and repository status.
+5. Do not create empty commits or combine unrelated work.
+
+## 5. Automatic GitHub push
+
+After the local commit succeeds:
+
+1. Confirm the configured remote is the expected repository.
+2. Confirm the branch is the intended publishing branch.
+3. Ensure the remote is reachable and authentication is available.
+4. Push the completed commit to the configured remote and current branch using a normal, non-force push.
+5. Set upstream tracking only when appropriate.
+6. Verify that the push succeeded and that the remote contains the intended commit.
+7. If the push fails, preserve the local commit and report the error. Never force-push to make it succeed.
+
+Do not ask for routine approval before a normal push of a successfully validated feature. However, stop for destructive operations, secrets, unexpected remote changes, ambiguous repository state, or failed safety checks.
+
+## 6. Completion report
+
+After each feature, provide:
+
+* Feature summary.
+* Commit message and full commit hash.
+* Files changed.
+* Tests and checks executed, with actual results.
+* GitHub repository URL and pushed branch.
+* Push verification result.
+* Any skipped checks or unresolved issues.
+
+Never report a successful push without verifying it.
+
+## 7. Execution policy
+
+Apply these instructions after every meaningful feature or bug fix, not only when explicitly asked to publish.
+
+Do not push after every individual file edit. Wait until the feature is complete and validated, then commit and push once.
+
+Start by inspecting the current project and determining which setup steps remain. Do not overwrite existing configuration or publish the initial project until the files and secrets have been reviewed.
