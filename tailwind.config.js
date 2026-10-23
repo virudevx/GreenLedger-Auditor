@@ -7,53 +7,84 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#090D16',
+        background: '#060D18',
         surface: {
-          DEFAULT: '#111827',
-          light: '#1F293D',
-          dark: '#0B0F19',
-          card: '#131B2E',
+          DEFAULT: '#0D1728',
+          light: '#16233A',
+          dark: '#0A1424',
+          card: '#0F1B2E',
         },
         border: {
-          DEFAULT: '#1F2937',
-          subtle: '#182234',
-          accent: '#2D3B55',
+          DEFAULT: '#1C2A42',
+          subtle: '#152238',
+          accent: '#2B3B57',
         },
         primary: {
-          DEFAULT: '#10B981',
-          hover: '#059669',
-          light: '#34D399',
-          dark: '#065F46',
-          dim: 'rgba(16, 185, 129, 0.12)',
+          DEFAULT: '#8DFF90',
+          hover: '#6EE87A',
+          light: '#B9FF9D',
+          dark: '#1F6B3A',
+          dim: 'rgba(141, 255, 144, 0.12)',
         },
         warning: {
-          DEFAULT: '#F59E0B',
-          hover: '#D97706',
-          dim: 'rgba(245, 158, 11, 0.12)',
+          DEFAULT: '#FFD166',
+          hover: '#F0B93A',
+          dim: 'rgba(255, 209, 102, 0.14)',
         },
         danger: {
-          DEFAULT: '#EF4444',
-          hover: '#DC2626',
-          dim: 'rgba(239, 68, 68, 0.12)',
+          DEFAULT: '#FF6B8A',
+          hover: '#F04A6E',
+          dim: 'rgba(255, 107, 138, 0.14)',
         },
         text: {
-          primary: '#F9FAFB',
-          secondary: '#9CA3AF',
-          muted: '#6B7280',
-        }
+          primary: '#F4F7F5',
+          secondary: '#A6B6CC',
+          muted: '#71839D',
+        },
+        mint: {
+          DEFAULT: '#B9FF9D',
+          deep: '#7CF07A',
+        },
+        lilac: {
+          DEFAULT: '#DCC8FF',
+          deep: '#B99CFF',
+        },
+        sky: {
+          DEFAULT: '#BEE9FF',
+          deep: '#7FCDF4',
+        },
+        blush: {
+          DEFAULT: '#FFC6DE',
+          deep: '#F79BC3',
+        },
+        lime: {
+          DEFAULT: '#8DFF90',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'Menlo', 'Monaco', 'Courier New', 'monospace'],
       },
       borderRadius: {
-        'card': '12px',
+        'card': '22px',
+        'pill': '999px',
       },
       boxShadow: {
-        'glow-emerald': '0 0 20px -5px rgba(16, 185, 129, 0.3)',
-        'glow-amber': '0 0 20px -5px rgba(245, 158, 11, 0.3)',
-        'glow-danger': '0 0 20px -5px rgba(239, 68, 68, 0.3)',
-      }
+        card: '0 24px 60px -36px rgba(0, 0, 0, 0.9)',
+        glow: '0 0 30px -8px rgba(141, 255, 144, 0.55)',
+        'glow-emerald': '0 0 24px -6px rgba(141, 255, 144, 0.4)',
+        'glow-amber': '0 0 24px -6px rgba(255, 209, 102, 0.4)',
+        'glow-danger': '0 0 24px -6px rgba(255, 107, 138, 0.4)',
+      },
+      keyframes: {
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-7px)' },
+        },
+      },
+      animation: {
+        float: 'float 6s ease-in-out infinite',
+      },
     },
   },
   plugins: [],

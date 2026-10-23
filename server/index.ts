@@ -123,6 +123,7 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
 
     // STAGE 1: Pre-Flight Security Gate
     const securityResult = runPreFlightSecurityScan(rawPayload, gateEnabled);
+    const securityCompletedAt = performance.now();
     const { rawPayload: _rawPayload, ...publicSecurityResult } = securityResult;
 
     // If gate is enabled and injection pattern detected: BLOCK BEFORE MODEL
@@ -165,7 +166,13 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
           tokensConsumed: 0,
           baselineTokensWithoutGate: 850,
           modelTier: 'NONE (Zero-Trust Intercept: 0 Model Calls)',
-          securityGateState: gateEnabled
+          securityGateState: gateEnabled,
+          stageTimings: {
+            securityMs: elapsedMs,
+            extractionMs: 0,
+            verificationMs: 0,
+            decisionMs: 0
+          }
         }
       });
       return;
@@ -173,11 +180,24 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
 
     // STAGE 2: Multimodal Extraction via Gemini 2.5 Flash
     // We pass sanitizedPayload so PII is not leaked to external AI
-    const extractionResult = await extractInvoiceWithGemini(securityResult.sanitizedPayload, fileData);
+    let extractionResult;
+    try {
+      extractionResult = await extractInvoiceWithGemini(securityResult.sanitizedPayload, fileData);
+    } catch (extractErr: any) {
+      // Uploaded documents must fail loudly: a fabricated invoice is worse than no verdict.
+      const documentLabel = req.file ? `'${req.file.originalname}'` : 'this document';
+      res.status(422).json({
+        success: false,
+        error: `Could not read invoice data from ${documentLabel}: ${String(extractErr?.message || 'extraction failed').slice(0, 300)}. Try a text-based PDF, a sharper photo, or paste the invoice text.`
+      });
+      return;
+    }
+    const extractionCompletedAt = performance.now();
     const extractedInvoice = extractionResult.invoice;
 
     // STAGE 3: Autonomous Tool Verification against Deterministic Catalog
     const verification = verifyInvoiceLineItems(extractedInvoice, config);
+    const verificationCompletedAt = performance.now();
 
     // STAGE 4: Tiered Decision Routing
     const decision = evaluateDecisionPolicy(securityResult, verification, extractedInvoice, config);
@@ -195,6 +215,12 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
 
     const endTime = performance.now();
     const elapsedMs = Math.round(endTime - startTime);
+    const stageTimings = {
+      securityMs: Math.round(securityCompletedAt - startTime),
+      extractionMs: Math.round(extractionCompletedAt - securityCompletedAt),
+      verificationMs: Math.round(verificationCompletedAt - extractionCompletedAt),
+      decisionMs: Math.round(endTime - verificationCompletedAt)
+    };
 
     // Calculate token savings estimate
     let tokenSavingsPercent: number | null = null;
@@ -221,7 +247,8 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
         tokensConsumed,
         baselineTokensWithoutGate: baselineTokens,
         modelTier: modelTierUsed,
-        securityGateState: gateEnabled
+        securityGateState: gateEnabled,
+        stageTimings
       }
     });
 

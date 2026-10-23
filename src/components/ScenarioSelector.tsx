@@ -1,94 +1,138 @@
 import React from 'react';
+import { ArrowRight, AlertTriangle, BookOpen, CheckCircle2, FileCheck2, ShieldX, Sparkles } from 'lucide-react';
 import { DEMO_SCENARIOS, DemoScenario } from '../constants/scenarios';
-import { CheckCircle2, AlertTriangle, ShieldX, Sparkles } from 'lucide-react';
+import { ScenarioLastRun } from '../types/audit';
+import { BlushOcto, LeafCluster, LilacOcto } from './Characters';
 
 interface ScenarioSelectorProps {
   selectedScenarioId: string;
   onSelectScenario: (scenario: DemoScenario) => void;
   isRunning: boolean;
+  lastRuns: Record<string, ScenarioLastRun>;
+  onOpenCatalog: () => void;
 }
+
+const formatVerdict = (verdict: string) => verdict.replace(/_/g, ' ');
+
+const formatVariance = (value: number | null) => {
+  if (value === null || value === undefined) return '—';
+  return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
+};
+
+const formatCarbon = (value: number | null) => {
+  if (value === null || value === undefined) return '—';
+  return `${value.toLocaleString()} kg`;
+};
 
 export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({
   selectedScenarioId,
   onSelectScenario,
   isRunning,
+  lastRuns,
+  onOpenCatalog,
 }) => {
   return (
     <section aria-labelledby="scenario-title" className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 id="scenario-title" className="text-xs font-mono font-semibold tracking-wider text-text-secondary uppercase flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-primary" />
-          <span>Evaluation Scenarios</span>
-        </h2>
-        <span className="text-[11px] text-text-muted">Select to populate simulated supplier invoice</span>
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 id="scenario-title" className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-white">
+            <Sparkles className="h-4 w-4 text-primary" />
+            Choose a demo scenario
+          </h2>
+          <p className="mt-0.5 text-xs text-text-secondary">
+            Load a sample invoice to see GreenLedger in action — it audits automatically.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onOpenCatalog}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:border-primary/40 hover:text-white focus-ring"
+        >
+          <BookOpen className="h-3.5 w-3.5 text-primary" />
+          Benchmark catalog
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {DEMO_SCENARIOS.map((scenario) => {
           const isSelected = selectedScenarioId === scenario.id;
-          
-          let icon = <CheckCircle2 className="w-4 h-4 text-primary" />;
-          let borderColor = isSelected ? 'border-primary ring-1 ring-primary/40' : 'border-border hover:border-primary/40';
-          let badgeBg = 'bg-primary-dim text-primary-light border-primary/30';
-          let cardSurface = 'bg-gradient-to-br from-[#d9ffd6] to-[#baf2c2] text-slate-950';
+          const lastRun = lastRuns[scenario.id];
+          const isBusy = isRunning && isSelected;
 
-          if (scenario.id === 'anomaly') {
-            icon = <AlertTriangle className="w-4 h-4 text-warning" />;
-            borderColor = isSelected ? 'border-warning ring-1 ring-warning/40' : 'border-border hover:border-warning/40';
-            badgeBg = 'bg-warning-dim text-warning border-warning/30';
-            cardSurface = 'bg-gradient-to-br from-[#e5d4ff] to-[#b89cff] text-slate-950';
-          } else if (scenario.id === 'adversarial') {
-            icon = <ShieldX className="w-4 h-4 text-danger" />;
-            borderColor = isSelected ? 'border-danger ring-1 ring-danger/40' : 'border-border hover:border-danger/40';
-            badgeBg = 'bg-danger-dim text-danger border-danger/30';
-            cardSurface = 'bg-gradient-to-br from-[#ffc7df] to-[#f69bc2] text-slate-950';
-          }
+          const surface =
+            scenario.id === 'clean'
+              ? 'pastel-mint'
+              : scenario.id === 'anomaly'
+                ? 'pastel-lilac'
+                : 'pastel-blush';
+
+          const Icon =
+            scenario.id === 'clean' ? FileCheck2 : scenario.id === 'anomaly' ? AlertTriangle : ShieldX;
+
+          const Character =
+            scenario.id === 'clean' ? LeafCluster : scenario.id === 'anomaly' ? LilacOcto : BlushOcto;
+
+          const BulletIcon =
+            scenario.id === 'clean' ? CheckCircle2 : scenario.id === 'anomaly' ? AlertTriangle : ShieldX;
 
           return (
             <button
               key={scenario.id}
+              type="button"
               disabled={isRunning}
               aria-pressed={isSelected}
-              aria-label={`${scenario.title}, expected verdict ${scenario.expectedVerdict.replace('_', ' ')}`}
+              aria-label={`${scenario.title}, expected verdict ${formatVerdict(scenario.expectedVerdict)}`}
               onClick={() => onSelectScenario(scenario)}
-              className={`text-left p-4 rounded-2xl transition-all duration-200 relative overflow-hidden flex flex-col justify-between border ${cardSurface} ${borderColor} ${
-                isSelected ? 'shadow-[0_12px_30px_rgba(116,255,147,0.14)] scale-[1.01]' : 'hover:-translate-y-0.5'
-              } ${isRunning ? 'opacity-60 cursor-not-allowed' : ''}`}
+              className={`relative min-h-[196px] overflow-hidden rounded-card border p-4 text-left shadow-card transition-all duration-200 focus-ring ${surface} ${
+                isSelected ? 'ring-2 ring-white/80 ring-offset-2 ring-offset-background' : 'hover:-translate-y-0.5 hover:shadow-glow'
+              } ${isRunning ? 'cursor-wait' : ''}`}
             >
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-[10px] font-mono font-bold tracking-widest text-slate-700/70">
+              <div className="relative z-10 pr-16">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-white/55 px-2 py-0.5 text-[9px] font-extrabold tracking-[0.14em] text-slate-700">
                     {scenario.number}
                   </span>
-                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-semibold ${badgeBg}`}>
+                  <span className="rounded-full bg-slate-950/10 px-2 py-0.5 text-[9px] font-semibold tracking-wide text-slate-700">
                     {scenario.badge}
                   </span>
                 </div>
 
-                <div className="flex items-start gap-2 mb-1.5">
-                  <div className="mt-0.5 shrink-0">{icon}</div>
-                  <div>
-                    <h3 className="text-[16px] font-extrabold leading-tight">
-                      {scenario.title}
-                    </h3>
-                    <p className="text-xs text-slate-700/80 font-medium mt-0.5">
+                <div className="mt-2 flex items-start gap-2">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/60">
+                    <Icon className="h-4 w-4 text-slate-800" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="truncate text-[15px] font-extrabold leading-tight text-slate-950">
                       {scenario.vendorName}
+                    </h3>
+                    <p className="mt-0.5 line-clamp-2 text-[11px] font-semibold leading-snug text-slate-700">
+                      {scenario.title}
                     </p>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-800/80 line-clamp-2 mt-2 leading-relaxed">
-                  {scenario.description}
-                </p>
+                <ul className="mt-3 space-y-1">
+                  {scenario.keyHighlights.slice(0, 3).map((highlight) => (
+                    <li key={highlight} className="flex items-start gap-1.5 text-[10.5px] font-medium leading-snug text-slate-800">
+                      <BulletIcon className="mt-0.5 h-3 w-3 shrink-0" />
+                      <span className="line-clamp-2">{highlight}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
 
-              <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center justify-between text-[11px] font-mono">
-                <span className="text-slate-700/70">Target Verdict:</span>
-                <span className={`font-semibold ${
-                  scenario.expectedVerdict === 'AUTO_APPROVED' ? 'text-primary' :
-                  scenario.expectedVerdict === 'ESCALATED_REMEDIATION' ? 'text-warning' : 'text-danger'
-                }`}>
-                  {scenario.expectedVerdict.replace('_', ' ')}
+              <Character className="character pointer-events-none absolute -bottom-5 -right-3 h-32 w-32 opacity-95" />
+
+              <div className="relative z-10 mt-3 flex items-center justify-between gap-2 border-t border-slate-950/10 pt-2">
+                <span className="truncate font-mono text-[9.5px] font-semibold text-slate-700">
+                  {isBusy
+                    ? 'Auditing…'
+                    : lastRun
+                      ? `Last: ${formatVerdict(lastRun.verdict)} · ${formatVariance(lastRun.variance)} · ${formatCarbon(lastRun.carbon)}`
+                      : `Expected: ${formatVerdict(scenario.expectedVerdict)}`}
+                </span>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white">
+                  <ArrowRight className="h-3.5 w-3.5" />
                 </span>
               </div>
             </button>

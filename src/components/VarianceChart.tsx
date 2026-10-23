@@ -1,133 +1,106 @@
 import React from 'react';
+import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Leaf, TrendingUp } from 'lucide-react';
 import { VerifiedLineItem } from '../types/audit';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { BarChart3, TrendingUp, Leaf } from 'lucide-react';
 
 interface VarianceChartProps {
   lineItems: VerifiedLineItem[];
 }
 
+const tooltipStyle = {
+  backgroundColor: '#0D1728',
+  borderColor: '#1C2A42',
+  borderRadius: '12px',
+  fontSize: '10px',
+  color: '#F4F7F5',
+};
+
 export const VarianceChart: React.FC<VarianceChartProps> = ({ lineItems }) => {
   if (!lineItems || lineItems.length === 0) return null;
 
-  // Format data for price comparison
   const priceData = lineItems
-    .filter(item => item.benchmarkUnitPrice !== null)
-    .map(item => ({
-      name: item.description.length > 18 ? item.description.slice(0, 18) + '...' : item.description,
-      fullName: item.description,
+    .filter((item) => item.benchmarkUnitPrice !== null)
+    .map((item) => ({
+      name: item.description.length > 16 ? `${item.description.slice(0, 16)}…` : item.description,
       billed: item.billedUnitPrice,
       benchmark: item.benchmarkUnitPrice,
       variance: item.priceVariancePercent ?? 0,
     }));
 
-  // Format data for carbon comparison
   const carbonData = lineItems
-    .filter(item => item.benchmarkCarbonFactor !== null)
-    .map(item => {
-      const claimedIntensity = item.claimedCarbonKg !== null && item.quantity > 0 
-        ? item.claimedCarbonKg / item.quantity 
-        : 0;
+    .filter((item) => item.benchmarkCarbonFactor !== null)
+    .map((item) => {
+      const claimedIntensity =
+        item.claimedCarbonKg !== null && item.quantity > 0 ? item.claimedCarbonKg / item.quantity : 0;
       return {
-        name: item.description.length > 18 ? item.description.slice(0, 18) + '...' : item.description,
-        fullName: item.description,
+        name: item.description.length > 16 ? `${item.description.slice(0, 16)}…` : item.description,
         claimed: claimedIntensity,
         benchmark: item.benchmarkCarbonFactor,
         mismatchRatio: item.carbonMismatchRatio,
-        unit: item.unit
       };
     });
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      
-      {/* Price Comparison Card */}
-      <div className="p-3.5 rounded-xl bg-surface-dark border border-border flex flex-col justify-between">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
-            <TrendingUp className="w-4 h-4 text-primary" />
-            <span>Unit Price Variance vs. Benchmark ($/unit)</span>
-          </div>
-          <span className="text-[10px] font-mono text-text-muted">ERP Index</span>
+    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="min-w-0 rounded-2xl border border-border bg-surface-dark p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold text-text-primary">
+            <TrendingUp className="h-3.5 w-3.5 text-primary" />
+            Price variance
+          </span>
+          <span className="font-mono text-[9px] text-text-muted">ERP index</span>
         </div>
-
-        <div className="h-44 w-full">
+        <div className="h-36 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={priceData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-              <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#9CA3AF', fontSize: 10 }} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#111827', borderColor: '#1F2937', borderRadius: '8px', fontSize: '11px' }}
-                labelStyle={{ color: '#F9FAFB', fontWeight: 600 }}
-              />
-              <Bar dataKey="benchmark" fill="#374151" name="Benchmark Price ($)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="billed" name="Billed Price ($)" radius={[4, 4, 0, 0]}>
+            <BarChart data={priceData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+              <XAxis dataKey="name" tick={{ fill: '#71839D', fontSize: 8 }} interval={0} />
+              <YAxis tick={{ fill: '#71839D', fontSize: 8 }} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#F4F7F5', fontWeight: 600 }} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+              <Bar dataKey="benchmark" fill="#33445E" name="Benchmark" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="billed" name="Billed" radius={[4, 4, 0, 0]}>
                 {priceData.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={entry.variance > 10 ? '#EF4444' : entry.variance > 0 ? '#F59E0B' : '#10B981'} 
-                  />
+                  <Cell key={`price-${index}`} fill={entry.variance > 10 ? '#FF6B8A' : entry.variance > 0 ? '#FFD166' : '#B9FF9D'} />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
-
-        <div className="flex items-center justify-between text-[10px] font-mono text-text-muted pt-2 border-t border-border/50">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-gray-600 inline-block"></span> Benchmark
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> Compliant
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-danger inline-block"></span> &gt;10% Markup
-          </span>
+        <div className="flex items-center justify-between border-t border-border/50 pt-1.5 font-mono text-[8.5px] text-text-muted">
+          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#33445E]" /> Benchmark</span>
+          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> Compliant</span>
+          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger" /> &gt;10%</span>
         </div>
       </div>
 
-      {/* Carbon Scope 3 Intensity Card */}
-      <div className="p-3.5 rounded-xl bg-surface-dark border border-border flex flex-col justify-between">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
-            <Leaf className="w-4 h-4 text-emerald-400" />
-            <span>Carbon Intensity Comparison (kg CO₂e/unit)</span>
-          </div>
-          <span className="text-[10px] font-mono text-text-muted">DEFRA / GLEC</span>
+      <div className="min-w-0 rounded-2xl border border-border bg-surface-dark p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold text-text-primary">
+            <Leaf className="h-3.5 w-3.5 text-primary" />
+            Carbon intensity
+          </span>
+          <span className="font-mono text-[9px] text-text-muted">kg CO₂e / unit</span>
         </div>
-
-        <div className="h-44 w-full">
+        <div className="h-36 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={carbonData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-              <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#9CA3AF', fontSize: 10 }} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#111827', borderColor: '#1F2937', borderRadius: '8px', fontSize: '11px' }}
-                labelStyle={{ color: '#F9FAFB', fontWeight: 600 }}
-              />
-              <Bar dataKey="benchmark" fill="#10B981" name="Benchmark Factor (True Ref)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="claimed" name="Claimed Supplier Intensity" radius={[4, 4, 0, 0]}>
+            <BarChart data={carbonData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+              <XAxis dataKey="name" tick={{ fill: '#71839D', fontSize: 8 }} interval={0} />
+              <YAxis tick={{ fill: '#71839D', fontSize: 8 }} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: '#F4F7F5', fontWeight: 600 }} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+              <Bar dataKey="benchmark" fill="#7CF07A" name="Verified factor" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="claimed" name="Claimed intensity" radius={[4, 4, 0, 0]}>
                 {carbonData.map((entry, index) => (
-                  <Cell 
-                    key={`c-cell-${index}`} 
-                    fill={entry.mismatchRatio && entry.mismatchRatio >= 2.0 ? '#F59E0B' : '#059669'} 
-                  />
+                  <Cell key={`carbon-${index}`} fill={entry.mismatchRatio && entry.mismatchRatio >= 2 ? '#FFD166' : '#F79BC3'} />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
-
-        <div className="flex items-center justify-between text-[10px] font-mono text-text-muted pt-2 border-t border-border/50">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> Verified Ref Factor
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span> Greenwashing Claim
-          </span>
+        <div className="flex items-center justify-between border-t border-border/50 pt-1.5 font-mono text-[8.5px] text-text-muted">
+          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#7CF07A]" /> Verified factor</span>
+          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-blush-deep" /> Claimed</span>
+          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-warning" /> Mismatch</span>
         </div>
       </div>
-
     </div>
   );
 };

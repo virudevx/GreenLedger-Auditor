@@ -1,146 +1,139 @@
 import React from 'react';
-import { Shield, ShieldAlert, Zap, Clock, Database, BookOpen, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, BookOpen, Clock, Fingerprint, Leaf, Shield, ShieldAlert, Zap } from 'lucide-react';
 import { TelemetryData } from '../types/audit';
 
 interface TelemetryHeaderProps {
   telemetry: TelemetryData | null;
   gateEnabled: boolean;
+  redactionCount: number | null;
   onToggleGate: () => void;
   onOpenBenchmarkCatalog: () => void;
 }
 
+interface StatPillProps {
+  tone: string;
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  title?: string;
+}
+
+const StatPill: React.FC<StatPillProps> = ({ tone, icon, label, value, title }) => (
+  <div className={`stat-pill ${tone}`} title={title}>
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/45 text-slate-900">
+      {icon}
+    </span>
+    <div className="min-w-0">
+      <div className="text-[9px] font-semibold uppercase tracking-[0.12em] opacity-70">{label}</div>
+      <div className="max-w-[160px] truncate text-[13px] font-extrabold leading-tight">{value}</div>
+    </div>
+  </div>
+);
+
 export const TelemetryHeader: React.FC<TelemetryHeaderProps> = ({
   telemetry,
   gateEnabled,
+  redactionCount,
   onToggleGate,
   onOpenBenchmarkCatalog,
 }) => {
   return (
-    <header className="border-b border-border bg-surface-dark/95 backdrop-blur-md sticky top-0 z-40">
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-3">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          
-          {/* Brand Identity */}
+    <header className="relative z-40 border-b border-white/5 bg-[#060d18]/90 backdrop-blur-xl lg:sticky lg:top-0">
+      <div className="mx-auto w-full max-w-[1500px] px-4 py-3 sm:px-6">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-dark via-surface-card to-background border border-primary/40 flex items-center justify-center shadow-glow-emerald">
-              <Shield className="w-5 h-5 text-primary" />
+            <div className="brand-mark h-12 w-12">
+              <Leaf className="h-7 w-7 -rotate-12 text-[#0d2a19]" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-text-primary">
-                  GreenLedger <span className="text-primary font-mono text-sm uppercase px-1.5 py-0.5 rounded bg-primary-dim border border-primary/30">Auditor</span>
-                </h1>
-                <span className="hidden sm:inline-flex items-center text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-surface-light border border-border text-text-secondary">
-                  v1.0.0-PROD
-                </span>
-              </div>
-              <p className="text-xs text-text-secondary font-mono tracking-wider">
-                ZERO-TRUST AGENTIC ERP GATE • <span className="text-text-muted">Trust Nothing. Verify Everything.</span>
+              <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-white">
+                GreenLedger Auditor
+              </h1>
+              <p className="text-[11px] font-medium tracking-wide text-slate-400">
+                Autonomous Sustainability &amp; Procurement Auditor
               </p>
             </div>
           </div>
 
-          {/* Telemetry Bar & Controls */}
-          <div className="flex flex-wrap items-center gap-3">
-            
-            {/* Telemetry Metric: Latency */}
-            <div className="telemetry-card telemetry-card-green flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs">
-              <Clock className="w-3.5 h-3.5 text-text-muted" />
-              <div className="flex flex-col">
-                <span className="text-[10px] text-text-muted leading-none uppercase font-mono">Audit Latency</span>
-                <span className="font-mono font-semibold text-text-primary">
-                  {telemetry ? `${telemetry.latencyMs} ms` : '0 ms (Ready)'}
-                </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onToggleGate}
+              aria-pressed={gateEnabled}
+              aria-label={gateEnabled ? 'Disable security gate' : 'Enable security gate'}
+              className={`stat-pill pastel-mint focus-ring pr-2.5 transition-transform hover:-translate-y-0.5 ${
+                gateEnabled ? '' : 'pastel-blush'
+              }`}
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/50 text-slate-900">
+                {gateEnabled ? <Shield className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
+              </span>
+              <div className="text-left">
+                <div className="text-[9px] font-semibold uppercase tracking-[0.12em] opacity-70">Security Gate</div>
+                <div className="text-[13px] font-extrabold leading-tight">{gateEnabled ? 'ARMED' : 'DISARMED'}</div>
               </div>
-            </div>
+              <span className={`switch ml-1 ${gateEnabled ? 'switch-on' : ''}`} aria-hidden="true" />
+            </button>
 
-            {/* Telemetry Metric: Model Tier */}
-            <div className="telemetry-card telemetry-card-yellow flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs">
-              <Zap className="w-3.5 h-3.5 text-primary-light" />
-              <div className="flex flex-col">
-                <span className="text-[10px] text-text-muted leading-none uppercase font-mono">Active Model Tier</span>
-                <span className="font-mono font-semibold text-text-primary max-w-[150px] truncate" title={telemetry?.modelTier || 'gemini-2.5-flash'}>
-                  {telemetry?.modelTier || 'gemini-2.5-flash'}
-                </span>
-              </div>
-            </div>
+            <StatPill
+              tone="pastel-yellow"
+              icon={<Clock className="h-4 w-4" />}
+              label="Last Audit Latency"
+              value={telemetry ? (telemetry.latencyMs < 1 ? '<1 ms' : `${telemetry.latencyMs} ms`) : '—'}
+            />
+            <StatPill
+              tone="pastel-lilac"
+              icon={<Zap className="h-4 w-4" />}
+              label="Model Tier"
+              value={telemetry?.modelTier || 'Standby'}
+              title={telemetry?.modelTier}
+            />
+            <StatPill
+              tone="pastel-sky"
+              icon={<Fingerprint className="h-4 w-4" />}
+              label="PII Redacted"
+              value={redactionCount === null ? '—' : `${redactionCount} value${redactionCount === 1 ? '' : 's'}`}
+            />
 
-            {/* Telemetry Metric: Token Savings */}
-            <div className="telemetry-card telemetry-card-blue flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs">
-              <Database className="w-3.5 h-3.5 text-emerald-400" />
-              <div className="flex flex-col">
-                <span className="text-[10px] text-text-muted leading-none uppercase font-mono">Est. Token Savings</span>
-                <span className="font-mono font-semibold text-emerald-400">
-                  {telemetry?.tokenSavingsPercent !== null && telemetry?.tokenSavingsPercent !== undefined
-                    ? `${telemetry.tokenSavingsPercent}% Saved`
-                    : '--'}
-                </span>
-              </div>
-            </div>
-
-            {/* Benchmark Catalog Button */}
             <button
               type="button"
               onClick={onOpenBenchmarkCatalog}
               aria-label="Open benchmark catalog"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border hover:border-text-secondary text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
-              title="Inspect 8-Category Reference Benchmark Catalog"
+              title="Benchmark catalog"
+              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-300 transition-colors hover:border-primary/40 hover:text-white focus-ring"
             >
-              <BookOpen className="w-3.5 h-3.5 text-primary" />
-              <span>Catalog</span>
+              <BookOpen className="h-4 w-4" />
             </button>
 
-            {/* Security Gate Toggle Switch */}
-            <div className="flex items-center gap-2 pl-2 border-l border-border">
-              <button
-                type="button"
-                onClick={onToggleGate}
-                aria-pressed={gateEnabled}
-                aria-label={gateEnabled ? 'Disable security gate' : 'Enable security gate'}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold tracking-wide border transition-all duration-200 ${
-                  gateEnabled
-                    ? 'bg-primary-dim border-primary/50 text-primary-light hover:bg-primary-dim/80'
-                    : 'bg-danger-dim border-danger/60 text-danger hover:bg-danger-dim/80 pulse-glow-danger'
-                }`}
-              >
-                {gateEnabled ? (
-                  <>
-                    <Shield className="w-4 h-4 text-primary animate-pulse" />
-                    <span>GATE: ON</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldAlert className="w-4 h-4 text-danger animate-bounce" />
-                    <span>GATE: OFF</span>
-                  </>
-                )}
-              </button>
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-gradient-to-br from-lilac via-sky to-primary text-[11px] font-extrabold text-slate-950 shadow-glow-emerald"
+              aria-hidden="true"
+              title="GreenLedger workspace"
+            >
+              GL
             </div>
-
           </div>
         </div>
 
-        {/* RED-TEAM / UNSAFE DEMONSTRATION MODE WARNING BANNER */}
         {!gateEnabled && (
-          <div className="mt-2.5 p-2.5 rounded-lg bg-danger-dim border border-danger/50 text-xs text-danger flex items-center justify-between gap-3 animate-fadeIn">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-danger animate-pulse" />
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-danger/40 bg-danger-dim px-3 py-2.5 text-xs text-danger animate-fadeIn">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
-                <strong className="font-bold tracking-wide uppercase">RED-TEAM / UNSAFE DEMONSTRATION MODE ACTIVE:</strong>{' '}
-                Pre-flight model interception is disabled to demonstrate threat vectors. Sensitive PII remains safely redacted, and backend ERP payment execution is strictly firewalled.
+                <strong className="font-bold uppercase tracking-wide">Red-team mode active:</strong>{' '}
+                pre-flight interception is disabled for pasted text. PII in text is still redacted, but uploaded file
+                contents are never pre-scanned. The final verdict remains deterministic.
               </div>
             </div>
             <button
               type="button"
               onClick={onToggleGate}
-              aria-label="Re-enable security gate"
-              className="shrink-0 px-2 py-0.5 text-[11px] font-bold rounded bg-danger text-white hover:bg-danger-hover transition-colors uppercase font-mono"
+              className="shrink-0 rounded-lg bg-danger px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-danger-hover focus-ring"
             >
-              Re-Enable Gate
+              Re-arm gate
             </button>
           </div>
         )}
-
       </div>
     </header>
   );

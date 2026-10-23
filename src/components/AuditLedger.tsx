@@ -1,66 +1,79 @@
-import React, { useState, useEffect } from 'react';
-import { AuditLogEntry, AuditCertificate } from '../types/audit';
-import { 
-  verifyEntryIntegrity, 
-  verifyAuditChain 
-} from '../utils/crypto';
-import { downloadAuditCertificate } from '../utils/storage';
-import { 
-  Database, 
-  ShieldCheck, 
-  ShieldAlert, 
-  Copy, 
-  Check, 
-  Download, 
-  ChevronDown, 
-  ChevronUp, 
-  ExternalLink,
-  ShieldX,
-  AlertTriangle,
-  CheckCircle2,
+import React, { useEffect, useState } from 'react';
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Database,
+  Download,
+  Layers,
   Lock,
-  Layers
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
 } from 'lucide-react';
+import { AuditCertificate, AuditLogEntry } from '../types/audit';
+import { verifyAuditChain } from '../utils/crypto';
+import { downloadAuditCertificate, downloadJsonFile } from '../utils/storage';
 
 interface AuditLedgerProps {
   entries: AuditLogEntry[];
   onClearLedger: () => void;
 }
 
-export const AuditLedger: React.FC<AuditLedgerProps> = ({
-  entries,
-  onClearLedger,
-}) => {
+const securityTone = (status: AuditLogEntry['securityStatus']) => {
+  switch (status) {
+    case 'CLEAN':
+      return 'border-primary/30 bg-primary-dim text-primary-light';
+    case 'PII_REDACTED':
+      return 'border-warning/30 bg-warning-dim text-warning';
+    case 'INJECTION_BLOCKED':
+    case 'UNPROTECTED_WARNING':
+      return 'border-danger/40 bg-danger-dim text-danger';
+    default:
+      return 'border-border bg-surface-light text-text-muted';
+  }
+};
+
+const verdictTone = (verdict: AuditLogEntry['verdict']) => {
+  if (verdict === 'AUTO_APPROVED') return 'border-primary/30 bg-primary-dim text-primary-light';
+  if (verdict === 'ESCALATED_REMEDIATION') return 'border-warning/30 bg-warning-dim text-warning';
+  return 'border-danger/40 bg-danger-dim text-danger';
+};
+
+const formatTimestamp = (value: string) =>
+  new Date(value).toLocaleString([], {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+export const AuditLedger: React.FC<AuditLedgerProps> = ({ entries, onClearLedger }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [chainStatus, setChainStatus] = useState<{ chainValid: boolean; error?: string }>({ chainValid: true });
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
 
-  // Run cryptographic chain verification whenever entries change
   useEffect(() => {
     let isMounted = true;
-    verifyAuditChain(entries).then((res) => {
-      if (isMounted) {
-        setChainStatus({ chainValid: res.chainValid, error: res.error });
-      }
+    verifyAuditChain(entries).then((result) => {
+      if (isMounted) setChainStatus({ chainValid: result.chainValid, error: result.error });
     });
     return () => {
       isMounted = false;
     };
   }, [entries]);
 
-  const toggleExpand = (id: string) => {
-    setExpandedId(prev => (prev === id ? null : id));
-  };
-
-  const handleCopyHash = (hash: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleCopyHash = (hash: string, event: React.MouseEvent) => {
+    event.stopPropagation();
     navigator.clipboard.writeText(hash);
     setCopiedHash(hash);
-    setTimeout(() => setCopiedHash(null), 2000);
+    window.setTimeout(() => setCopiedHash(null), 1800);
   };
 
-  const handleExportEntryCertificate = (entry: AuditLogEntry, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleExportEntryCertificate = (entry: AuditLogEntry, event: React.MouseEvent) => {
+    event.stopPropagation();
     const cert: AuditCertificate = {
       schemaVersion: '1.0.0-GLA',
       auditId: entry.id,
@@ -71,240 +84,222 @@ export const AuditLedger: React.FC<AuditLedgerProps> = ({
         status: entry.securityStatus,
         redactionCount: entry.piiRedactedCount,
         findingsCount: entry.securityFindings?.length || 0,
-        blockedBeforeModel: entry.securityStatus === 'INJECTION_BLOCKED'
+        blockedBeforeModel: entry.securityStatus === 'INJECTION_BLOCKED',
       },
       aiExecution: {
         modelTier: entry.modelTierUsed,
         latencyMs: entry.latencyMs,
         tokenSavingsPercent: entry.tokenSavingsPercent,
-        isDemonstrationFixture: entry.modelTierUsed.includes('fixture') || entry.modelTierUsed.includes('deterministic')
+        isDemonstrationFixture: entry.modelTierUsed.includes('fixture') || entry.modelTierUsed.includes('deterministic'),
       },
       verification: {
         benchmarkDatasetVersion: entry.benchmarkDatasetVersion || '2026.Q1-EU-DEFRA-EPA-HYBRID',
         totalBilledAmount: entry.totalBilledAmount,
         totalEstimatedCarbonKg: entry.totalCarbonKg,
         maxPriceVariancePercent: entry.maxPriceVariancePercent,
-        lineItemCount: entry.verifiedLineItems?.length || 0
+        lineItemCount: entry.verifiedLineItems?.length || 0,
       },
       decision: {
         verdict: entry.verdict,
         reasoningSummary: entry.reasoningSummary,
-        remediationActions: entry.remediationActions || []
+        remediationActions: entry.remediationActions || [],
       },
       integrity: {
         sha256Hash: entry.sha256Hash,
         hashingAlgorithm: 'SHA-256 (Canonical JSON Payload)',
         previousRecordHash: entry.previousRecordHash || null,
-        canonicalization: 'RFC-8785 Canonical JSON Serialization'
-      }
+        canonicalization: 'RFC-8785 Canonical JSON Serialization',
+      },
     };
     downloadAuditCertificate(cert);
   };
 
+  const handleExportLog = () => {
+    downloadJsonFile(`GreenLedger-Audit-Log-${new Date().toISOString().slice(0, 10)}.json`, {
+      schemaVersion: '1.0.0-GLA',
+      exportedAt: new Date().toISOString(),
+      recordCount: entries.length,
+      chainVerified: chainStatus.chainValid,
+      entries,
+    });
+  };
+
   return (
-    <div className="bg-surface rounded-card border border-border p-5 space-y-4">
-      
-      {/* Header and Integrity Status */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-3">
+    <div id="audit-ledger" className="rounded-card border border-border bg-surface p-4 shadow-card">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
         <div className="flex items-center gap-2">
-          <Database className="w-5 h-5 text-primary" />
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-dim text-primary">
+            <Database className="h-4 w-4" />
+          </span>
           <div>
-            <h2 className="text-sm sm:text-base font-bold text-text-primary flex items-center gap-2">
-              <span>Tamper-Evident SHA-256 Audit Ledger</span>
-              <span className="text-[10px] font-mono font-normal px-2 py-0.5 rounded-full bg-surface-light border border-border text-text-secondary">
-                {entries.length} {entries.length === 1 ? 'Record' : 'Records'} Sealed
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-extrabold tracking-tight text-white">Immutable Audit Log</h2>
+              <span className="rounded-full border border-border bg-surface-dark px-2 py-0.5 font-mono text-[9px] text-text-muted">
+                {entries.length} {entries.length === 1 ? 'record' : 'records'} sealed
               </span>
-            </h2>
-            <p className="text-xs text-text-secondary">
-              Cryptographically chained record ledger with deterministic state persistence.
-            </p>
+            </div>
+            <p className="text-[10px] text-text-muted">SHA-256 hash chain persisted in this browser.</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Chain Integrity Status Badge */}
+        <div className="flex flex-wrap items-center gap-2">
           {entries.length > 0 && (
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold border ${
-              chainStatus.chainValid 
-                ? 'bg-primary-dim border-primary/40 text-primary-light' 
-                : 'bg-danger-dim border-danger text-danger animate-pulse'
-            }`}>
-              {chainStatus.chainValid ? (
-                <>
-                  <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-                  <span>CHAIN: VERIFIED</span>
-                </>
-              ) : (
-                <>
-                  <ShieldAlert className="w-3.5 h-3.5 text-danger" />
-                  <span>CHAIN: TAMPERED!</span>
-                </>
-              )}
-            </div>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-bold tracking-wide ${
+                chainStatus.chainValid
+                  ? 'border-primary/30 bg-primary-dim text-primary-light'
+                  : 'border-danger/40 bg-danger-dim text-danger'
+              }`}
+            >
+              {chainStatus.chainValid ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
+              {chainStatus.chainValid ? 'CHAIN VERIFIED' : 'CHAIN TAMPERED'}
+            </span>
           )}
+
+          <button
+            type="button"
+            onClick={handleExportLog}
+            disabled={entries.length === 0}
+            className="flex items-center gap-1.5 rounded-xl border border-border bg-surface-light px-2.5 py-1.5 text-[10px] font-semibold text-text-primary transition-colors hover:border-text-secondary disabled:cursor-not-allowed disabled:opacity-40 focus-ring"
+          >
+            <Download className="h-3.5 w-3.5 text-primary" />
+            Export log
+          </button>
 
           {entries.length > 0 && (
             <button
+              type="button"
               onClick={onClearLedger}
-              className="text-[11px] font-mono text-text-muted hover:text-danger transition-colors px-2 py-1"
+              className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-[10px] font-medium text-text-muted transition-colors hover:text-danger focus-ring"
             >
-              Clear Local Log
+              <Trash2 className="h-3.5 w-3.5" />
+              Clear
             </button>
           )}
         </div>
       </div>
 
-      {/* Ledger Table */}
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-surface-dark border-b border-border text-[11px] font-mono text-text-muted uppercase tracking-wider">
+      <div className="mt-3 overflow-x-auto rounded-2xl border border-border">
+        <table className="w-full min-w-[720px] text-left text-[10.5px]">
+          <thead className="bg-surface-dark text-[9px] uppercase tracking-[0.1em] text-text-muted">
             <tr>
-              <th className="py-2.5 px-3">Timestamp</th>
-              <th className="py-2.5 px-3">Supplier / Vendor</th>
-              <th className="py-2.5 px-3">Security Status</th>
-              <th className="py-2.5 px-3">Model Tier</th>
-              <th className="py-2.5 px-3 text-right">Scope 3 CO₂e</th>
-              <th className="py-2.5 px-3 text-center">Verdict</th>
-              <th className="py-2.5 px-3 text-right">SHA-256 Hash</th>
-              <th className="py-2.5 px-3 text-center">Actions</th>
+              <th className="px-3 py-2.5 font-semibold">Timestamp</th>
+              <th className="px-3 py-2.5 font-semibold">Vendor</th>
+              <th className="px-3 py-2.5 font-semibold">Security</th>
+              <th className="px-3 py-2.5 font-semibold">Model</th>
+              <th className="px-3 py-2.5 text-right font-semibold">Total CO₂e</th>
+              <th className="px-3 py-2.5 text-center font-semibold">Verdict</th>
+              <th className="px-3 py-2.5 text-right font-semibold">Hash</th>
+              <th className="px-3 py-2.5 text-center font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/60 font-mono">
             {entries.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-text-muted font-mono">
-                  No audit records committed to ledger yet. Run an audit and click "Commit Ledger Verdict".
+                <td colSpan={8} className="px-3 py-8 text-center text-[10px] text-text-muted">
+                  No records yet. An audit auto-runs on load — commit its verdict to seal the first record.
                 </td>
               </tr>
             ) : (
               entries.map((entry) => {
                 const isExpanded = expandedId === entry.id;
-
-                let verdictBadge = 'bg-primary-dim text-primary-light border-primary/30';
-                if (entry.verdict === 'ESCALATED_REMEDIATION') {
-                  verdictBadge = 'bg-warning-dim text-warning border-warning/40';
-                } else if (entry.verdict === 'QUARANTINED') {
-                  verdictBadge = 'bg-danger-dim text-danger border-danger/40';
-                }
-
-                let secBadge = 'text-primary';
-                if (entry.securityStatus === 'INJECTION_BLOCKED') secBadge = 'text-danger font-bold';
-                else if (entry.securityStatus === 'PII_REDACTED') secBadge = 'text-warning';
-                else if (entry.securityStatus === 'UNPROTECTED_WARNING') secBadge = 'text-danger';
-
-                const formattedTime = new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
                 return (
                   <React.Fragment key={entry.id}>
-                    <tr 
-                      onClick={() => toggleExpand(entry.id)}
-                      className={`hover:bg-surface-light/40 transition-colors cursor-pointer ${
-                        isExpanded ? 'bg-surface-light/30' : ''
-                      }`}
+                    <tr
+                      onClick={() => setExpandedId((current) => (current === entry.id ? null : entry.id))}
+                      className={`cursor-pointer transition-colors hover:bg-surface-light/30 ${isExpanded ? 'bg-surface-light/20' : ''}`}
                     >
-                      <td className="py-2.5 px-3 text-text-muted whitespace-nowrap">
-                        {formattedTime}
-                      </td>
-                      <td className="py-2.5 px-3 font-sans font-semibold text-text-primary whitespace-nowrap">
-                        {entry.vendorName}
-                      </td>
-                      <td className={`py-2.5 px-3 text-[11px] ${secBadge}`}>
-                        {entry.securityStatus.replace('_', ' ')}
-                      </td>
-                      <td className="py-2.5 px-3 text-text-secondary text-[11px] truncate max-w-[130px]">
-                        {entry.modelTierUsed}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-semibold text-emerald-400">
-                        {entry.totalCarbonKg !== null ? `${entry.totalCarbonKg.toLocaleString()} kg` : 'N/A'}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className={`inline-block text-[10px] px-2 py-0.5 rounded border font-semibold ${verdictBadge}`}>
-                          {entry.verdict.replace('_', ' ')}
+                      <td className="whitespace-nowrap px-3 py-2.5 text-text-muted">{formatTimestamp(entry.timestamp)}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 font-sans font-semibold text-text-primary">{entry.vendorName}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${securityTone(entry.securityStatus)}`}>
+                          {entry.securityStatus.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-right">
+                      <td className="max-w-[140px] truncate px-3 py-2.5 text-[9.5px] text-text-secondary">{entry.modelTierUsed}</td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-primary-light">
+                        {entry.totalCarbonKg !== null ? `${entry.totalCarbonKg.toLocaleString()} kg` : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${verdictTone(entry.verdict)}`}>
+                          {entry.verdict.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
                         <button
-                          onClick={(e) => handleCopyHash(entry.sha256Hash, e)}
-                          className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-text-primary transition-colors font-mono"
-                          title="Click to copy full SHA-256 hash"
+                          type="button"
+                          onClick={(event) => handleCopyHash(entry.sha256Hash, event)}
+                          className="inline-flex items-center gap-1 text-[9.5px] text-text-muted transition-colors hover:text-text-primary focus-ring"
+                          title="Copy the full SHA-256 hash"
                         >
-                          <span>{entry.sha256Hash.slice(0, 8)}...{entry.sha256Hash.slice(-6)}</span>
-                          {copiedHash === entry.sha256Hash ? (
-                            <Check className="w-3 h-3 text-primary" />
-                          ) : (
-                            <Copy className="w-3 h-3 opacity-60" />
-                          )}
+                          <span>{entry.sha256Hash.slice(0, 7)}…{entry.sha256Hash.slice(-4)}</span>
+                          {copiedHash === entry.sha256Hash ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3 opacity-60" />}
                         </button>
                       </td>
-                      <td className="py-2.5 px-3 text-center">
+                      <td className="px-3 py-2.5 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button
-                            onClick={(e) => handleExportEntryCertificate(entry, e)}
-                            className="p-1 hover:bg-surface rounded text-text-muted hover:text-primary transition-colors"
-                            title="Export Audit Certificate JSON"
+                            type="button"
+                            onClick={(event) => handleExportEntryCertificate(entry, event)}
+                            className="rounded p-1 text-text-muted transition-colors hover:bg-surface hover:text-primary focus-ring"
+                            title="Export certificate JSON"
                           >
-                            <Download className="w-3.5 h-3.5" />
+                            <Download className="h-3.5 w-3.5" />
                           </button>
-                          <button
-                            className="p-1 hover:bg-surface rounded text-text-muted hover:text-text-primary transition-colors"
-                          >
-                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                          </button>
+                          <span className="rounded p-1 text-text-muted">
+                            {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                          </span>
                         </div>
                       </td>
                     </tr>
 
-                    {/* Expandable Audit Log Details Row */}
                     {isExpanded && (
                       <tr className="bg-surface-dark/80">
-                        <td colSpan={8} className="p-4 border-t border-b border-border/70 space-y-3 font-sans">
-                          
-                          <div className="flex flex-wrap items-center justify-between gap-3 text-xs border-b border-border/50 pb-2">
-                            <div className="flex items-center gap-2 font-mono">
-                              <Lock className="w-3.5 h-3.5 text-primary" />
+                        <td colSpan={8} className="space-y-3 border-y border-border/70 p-4 font-sans">
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-2 text-[10px]">
+                            <div className="flex flex-wrap items-center gap-2 font-mono">
+                              <Lock className="h-3.5 w-3.5 text-primary" />
                               <span className="text-text-muted">Audit ID:</span>
                               <span className="font-semibold text-text-primary">{entry.id}</span>
-                              <span className="text-text-muted ml-2">Invoice:</span>
+                              <span className="text-text-muted">Invoice:</span>
                               <span className="text-text-primary">{entry.invoiceNumber}</span>
                             </div>
-                            <div className="flex items-center gap-2 font-mono text-[11px]">
-                              <span className="text-text-muted">Total Billed:</span>
+                            <div className="flex items-center gap-2 font-mono">
+                              <span className="text-text-muted">Billed:</span>
                               <span className="font-semibold text-text-primary">${entry.totalBilledAmount.toLocaleString()}</span>
-                              <span className="text-text-muted ml-2">Max Price Var:</span>
-                              <span className="font-semibold text-warning">{entry.maxPriceVariancePercent !== null ? `${entry.maxPriceVariancePercent}%` : 'N/A'}</span>
+                              <span className="text-text-muted">Max variance:</span>
+                              <span className="font-semibold text-warning">
+                                {entry.maxPriceVariancePercent !== null ? `${entry.maxPriceVariancePercent}%` : '—'}
+                              </span>
                             </div>
                           </div>
 
-                          {/* Full Cryptographic Hash & Chaining Info */}
-                          <div className="p-2.5 rounded-lg bg-surface border border-border text-xs font-mono space-y-1">
-                            <div className="flex items-center justify-between text-[11px] text-text-muted">
+                          <div className="rounded-xl border border-border bg-surface p-2.5 font-mono text-[10px]">
+                            <div className="flex items-center justify-between text-[9px] text-text-muted">
                               <span className="flex items-center gap-1">
-                                <Layers className="w-3.5 h-3.5 text-primary" />
-                                <span>Record SHA-256 Digest (Canonical JSON Payload)</span>
+                                <Layers className="h-3 w-3 text-primary" />
+                                Record SHA-256 digest
                               </span>
                               <button
-                                onClick={(e) => handleCopyHash(entry.sha256Hash, e)}
+                                type="button"
+                                onClick={(event) => handleCopyHash(entry.sha256Hash, event)}
                                 className="text-primary hover:underline"
                               >
-                                {copiedHash === entry.sha256Hash ? 'Copied to clipboard' : 'Copy Full Hash'}
+                                {copiedHash === entry.sha256Hash ? 'Copied' : 'Copy'}
                               </button>
                             </div>
-                            <div className="break-all text-[11px] text-primary-light font-semibold select-all">
-                              {entry.sha256Hash}
-                            </div>
+                            <div className="mt-1 break-all font-semibold text-primary-light">{entry.sha256Hash}</div>
                             {entry.previousRecordHash && (
-                              <div className="pt-1 text-[10px] text-text-muted truncate">
-                                Previous Chained Hash: <span className="text-text-secondary">{entry.previousRecordHash}</span>
+                              <div className="mt-1 truncate text-[9px] text-text-muted">
+                                Previous: <span className="text-text-secondary">{entry.previousRecordHash}</span>
                               </div>
                             )}
                           </div>
 
-                          {/* Narrative Summary */}
-                          <div className="text-xs text-text-secondary leading-relaxed">
-                            <strong className="text-text-primary">Reasoning Summary: </strong>
+                          <p className="text-[10.5px] leading-relaxed text-text-secondary">
+                            <strong className="text-text-primary">Reasoning: </strong>
                             {entry.reasoningSummary}
-                          </div>
-
+                          </p>
                         </td>
                       </tr>
                     )}
@@ -316,12 +311,11 @@ export const AuditLedger: React.FC<AuditLedgerProps> = ({
         </table>
       </div>
 
-      {/* Cryptographic Trust Boundary Disclosure */}
-      <div className="p-3 rounded-lg bg-surface-dark border border-border/60 text-[11px] text-text-muted leading-relaxed">
-        <strong className="text-text-secondary font-mono">Integrity Model Disclosure: </strong>
-        This tamper-evident hash chain canonicalizes every procurement verification event with SHA-256. While tamper-evident against accidental or local data corruption in browser storage, cryptographic finality against root privileged actors requires optional server-side append-only anchoring.
+      <div className="mt-3 rounded-xl border border-border/60 bg-surface-dark p-2.5 text-[9.5px] leading-relaxed text-text-muted">
+        <strong className="font-mono text-text-secondary">Integrity model:</strong> each record is canonicalized and
+        SHA-256 hashed, with the previous record's hash chained in. This detects local tampering, but browser storage can
+        be rewritten by a privileged user; server-side append-only anchoring is still required for independent finality.
       </div>
-
     </div>
   );
 };

@@ -1,126 +1,140 @@
 import React from 'react';
-import { StageProgress, PipelineStageState } from '../types/audit';
-import { ShieldCheck, Cpu, CheckCircle2, AlertTriangle, ShieldX, XCircle, Loader2, GitCommit } from 'lucide-react';
+import {
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
+  ChevronRight,
+  FileSearch,
+  GitBranch,
+  GitCommit,
+  Loader2,
+  ShieldCheck,
+  ShieldX,
+  XCircle,
+} from 'lucide-react';
+import { PipelineStageState, StageProgress } from '../types/audit';
 
 interface PipelineStepperProps {
   stages: StageProgress[];
 }
 
+const STAGE_META = [
+  { title: 'Security Gate', fallback: 'PII & injection scan', icon: ShieldCheck, surface: 'pastel-mint' },
+  { title: 'Document Extraction', fallback: 'Structured extraction', icon: FileSearch, surface: 'pastel-sky' },
+  { title: 'Benchmark Verification', fallback: 'Price & carbon check', icon: BarChart3, surface: 'pastel-lilac' },
+  { title: 'Decision Routing', fallback: 'Deterministic policy engine', icon: GitBranch, surface: 'pastel-blush' },
+];
+
+const StatusBadge: React.FC<{ state: PipelineStageState }> = ({ state }) => {
+  switch (state) {
+    case 'SCANNING':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-[#0b2434] px-2 py-0.5 text-[9px] font-bold tracking-wide text-sky">
+          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+          RUNNING
+        </span>
+      );
+    case 'PASSED':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-[#0f2f1d] px-2 py-0.5 text-[9px] font-bold tracking-wide text-primary">
+          <CheckCircle2 className="h-2.5 w-2.5" />
+          PASSED
+        </span>
+      );
+    case 'ESCALATED':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-[#3a2a07] px-2 py-0.5 text-[9px] font-bold tracking-wide text-warning">
+          <AlertTriangle className="h-2.5 w-2.5" />
+          ESCALATED
+        </span>
+      );
+    case 'QUARANTINED':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-[#3a1022] px-2 py-0.5 text-[9px] font-bold tracking-wide text-blush">
+          <ShieldX className="h-2.5 w-2.5" />
+          QUARANTINED
+        </span>
+      );
+    case 'FAILED':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-[#3a1022] px-2 py-0.5 text-[9px] font-bold tracking-wide text-blush">
+          <XCircle className="h-2.5 w-2.5" />
+          FAILED
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full border border-slate-950/10 bg-slate-950/10 px-2 py-0.5 text-[9px] font-bold tracking-wide text-slate-700">
+          IDLE
+        </span>
+      );
+  }
+};
+
 export const PipelineStepper: React.FC<PipelineStepperProps> = ({ stages }) => {
-  const renderStatusBadge = (state: PipelineStageState) => {
-    switch (state) {
-      case 'SCANNING':
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30 animate-pulse">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            PROCESSING
-          </span>
-        );
-      case 'PASSED':
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-primary-dim text-primary-light border border-primary/30">
-            <CheckCircle2 className="w-3 h-3" />
-            PASSED
-          </span>
-        );
-      case 'ESCALATED':
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-warning-dim text-warning border border-warning/30">
-            <AlertTriangle className="w-3 h-3" />
-            ESCALATED
-          </span>
-        );
-      case 'QUARANTINED':
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-danger-dim text-danger border border-danger/30">
-            <ShieldX className="w-3 h-3" />
-            QUARANTINED
-          </span>
-        );
-      case 'FAILED':
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-danger-dim text-danger border border-danger/30">
-            <XCircle className="w-3 h-3" />
-            FAILED
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-surface-light text-text-muted border border-border">
-            IDLE
-          </span>
-        );
-    }
-  };
-
-  const getStageBorderClass = (state: PipelineStageState) => {
-    switch (state) {
-      case 'SCANNING':
-        return 'border-blue-500/50';
-      case 'PASSED':
-        return 'border-primary/40';
-      case 'ESCALATED':
-        return 'border-warning/50';
-      case 'QUARANTINED':
-      case 'FAILED':
-        return 'border-danger/60';
-      default:
-        return 'border-border opacity-70';
-    }
-  };
-
-  const getStageSurfaceClass = (stageNumber: number) => {
-    if (stageNumber === 1) return 'bg-gradient-to-br from-[#d7ffd6] to-[#a8eeb9] text-slate-950';
-    if (stageNumber === 2) return 'bg-gradient-to-br from-[#c8f1ff] to-[#8bdaf1] text-slate-950';
-    if (stageNumber === 3) return 'bg-gradient-to-br from-[#eadbff] to-[#c0a4f3] text-slate-950';
-    return 'bg-gradient-to-br from-[#ffd4ec] to-[#f3a7cd] text-slate-950';
-  };
-
   return (
-    <section aria-labelledby="pipeline-title" className="bg-surface/80 rounded-2xl border border-white/10 p-4 space-y-3 shadow-xl">
-      <div className="flex items-center justify-between border-b border-border/80 pb-2.5">
+    <section aria-labelledby="pipeline-title" className="rounded-card border border-border bg-surface p-4 shadow-card">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-3">
         <div className="flex items-center gap-2">
-          <GitCommit className="w-4 h-4 text-primary" />
-          <h2 id="pipeline-title" className="text-base font-bold text-text-primary">
-            Autonomous Audit Pipeline
-          </h2>
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-dim text-primary">
+            <GitCommit className="h-4 w-4" />
+          </span>
+          <div>
+            <h2 id="pipeline-title" className="text-sm font-extrabold tracking-tight text-white">
+              Autonomous Audit Pipeline
+            </h2>
+            <p className="text-[10px] text-text-muted">Four stages, deterministic verdict, live execution state.</p>
+          </div>
         </div>
-        <span className="text-[11px] font-mono text-text-muted">
-          State Machine Execution
+        <span className="rounded-full border border-border bg-surface-dark px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.12em] text-text-muted">
+          Auto · live
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {stages.map((stage) => {
+      <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-stretch" aria-live="polite">
+        {stages.map((stage, index) => {
+          const meta = STAGE_META[index] ?? STAGE_META[0];
+          const Icon = meta.icon;
           return (
-            <div
-              key={stage.stageNumber}
-              className={`p-3.5 rounded-2xl border transition-all duration-200 flex flex-col justify-between ${getStageSurfaceClass(stage.stageNumber)} ${getStageBorderClass(stage.state)}`}
-            >
-              <div>
-                <div className="flex items-center justify-between gap-1 mb-2">
-                  <span className="text-2xl font-black leading-none">
-                    {stage.stageNumber}
-                  </span>
-                  {renderStatusBadge(stage.state)}
+            <React.Fragment key={stage.stageNumber}>
+              <div
+                className={`flex min-w-0 flex-1 flex-col justify-between rounded-2xl border p-3 ${meta.surface} ${
+                  stage.state === 'SCANNING' ? 'ring-2 ring-white/60' : ''
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/65 text-[12px] font-black text-slate-950">
+                      {stage.stageNumber}
+                    </span>
+                    <StatusBadge state={stage.state} />
+                  </div>
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <Icon className="h-3.5 w-3.5 text-slate-800" />
+                    <h3 className="truncate text-[11.5px] font-extrabold leading-tight text-slate-950">
+                      {meta.title}
+                    </h3>
+                  </div>
+                  <p className="mt-1 line-clamp-2 min-h-[28px] text-[9.5px] leading-relaxed text-slate-800/80">
+                    {stage.summary || meta.fallback}
+                  </p>
                 </div>
-
-                <h3 className="text-xs font-extrabold leading-tight">
-                  {stage.name}
-                </h3>
-
-                <p className="text-[11px] text-slate-800/75 mt-1.5 leading-relaxed min-h-[34px]">
-                  {stage.summary || 'Awaiting prior pipeline execution.'}
-                </p>
+                <div className="mt-2 flex items-center justify-between border-t border-slate-950/10 pt-1.5 font-mono text-[9px] text-slate-700">
+                  <span>{meta.fallback}</span>
+                  <span className="font-bold text-slate-950">
+                    {stage.elapsedMs === undefined ? '—' : stage.elapsedMs < 1 ? '<1 ms' : `${stage.elapsedMs} ms`}
+                  </span>
+                </div>
               </div>
 
-              <div className="mt-2.5 pt-2 border-t border-slate-900/10 flex items-center justify-between text-[10px] font-mono text-slate-700/70">
-                <span>Duration</span>
-                <span className="font-semibold text-slate-950">
-                  {stage.elapsedMs !== undefined ? `${stage.elapsedMs} ms` : '--'}
-                </span>
-              </div>
-            </div>
+              {index < stages.length - 1 && (
+                <div className="hidden items-center justify-center lg:flex" aria-hidden="true">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface-dark text-primary">
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+              )}
+            </React.Fragment>
           );
         })}
       </div>

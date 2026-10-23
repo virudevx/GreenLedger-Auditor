@@ -42,6 +42,8 @@ export interface SecurityGateResult {
   blockedReason?: string;
 }
 
+export type ExtractionSource = 'GEMINI_2_5_FLASH' | 'GEMINI_2_5_PRO' | 'DEMO_FIXTURE' | 'LOCAL_HEURISTIC';
+
 export interface RawLineItem {
   id: string;
   description: string;
@@ -68,7 +70,7 @@ export interface ExtractedInvoice {
   claimedTotalCarbonKg?: number | null;
   overallSustainabilityClaims?: string[];
   certificationReferences?: string[];
-  extractionSource: 'GEMINI_2_5_FLASH' | 'GEMINI_2_5_PRO' | 'DEMO_FIXTURE';
+  extractionSource: ExtractionSource;
   isFixture: boolean;
 }
 
@@ -136,6 +138,13 @@ export interface DecisionResult {
   remediationActions: string[];
 }
 
+export interface StageTimings {
+  securityMs: number;
+  extractionMs: number;
+  verificationMs: number;
+  decisionMs: number;
+}
+
 export interface TelemetryData {
   latencyMs: number;
   startTime: string;
@@ -145,6 +154,14 @@ export interface TelemetryData {
   baselineTokensWithoutGate?: number;
   modelTier: string;
   securityGateState: boolean;
+  stageTimings?: StageTimings;
+}
+
+export interface ScenarioLastRun {
+  verdict: AuditVerdict;
+  variance: number | null;
+  carbon: number | null;
+  at: string;
 }
 
 export interface StageProgress {

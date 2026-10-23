@@ -96,17 +96,27 @@ export function savePreferences(prefs: GreenLedgerPreferences): void {
 }
 
 /**
- * Downloads a cryptographic Audit Certificate as formatted JSON
+ * Downloads any JSON-serializable payload as a local file.
  */
-export function downloadAuditCertificate(certificate: AuditCertificate): void {
-  const jsonStr = JSON.stringify(certificate, null, 2);
+export function downloadJsonFile(filename: string, data: unknown): void {
+  const jsonStr = JSON.stringify(data, null, 2);
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `GreenLedger-Certificate-${certificate.auditId}-${certificate.vendorName.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Downloads a cryptographic Audit Certificate as formatted JSON
+ */
+export function downloadAuditCertificate(certificate: AuditCertificate): void {
+  downloadJsonFile(
+    `GreenLedger-Certificate-${certificate.auditId}-${certificate.vendorName.replace(/[^a-zA-Z0-9]/g, '_')}.json`,
+    certificate
+  );
 }

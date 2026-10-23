@@ -233,8 +233,11 @@ export async function extractInvoiceWithGemini(
     return { invoice: fixture, modelUsed: modelLabel };
   }
 
-  // If no Gemini client is configured, use generic fallback
+  // If no Gemini client is configured, use generic fallback (pasted text payloads only)
   if (!aiClient) {
+    if (fileData) {
+      throw new Error('uploaded documents require a configured GEMINI_API_KEY — set it in .env, or paste the invoice text instead');
+    }
     return {
       invoice: parseGenericInvoiceText(sanitizedText),
       modelUsed: 'local-heuristic-parser'
@@ -296,6 +299,11 @@ Return a JSON object with:
     const responseText = response.text || '';
     const invoice = normalizeGeminiInvoice(JSON.parse(responseText));
 
+    if (fileData && invoice.lineItems.length === 0) {
+      // A document with zero extracted line items is unreadable, not an empty invoice.
+      throw new Error('no invoice line items could be read from the document');
+    }
+
     return {
       invoice,
       modelUsed: 'gemini-2.5-flash',
@@ -306,7 +314,17 @@ Return a JSON object with:
       } : undefined
     };
 
-  } catch (err) {
+  } catch (err: any) {
+    if (fileData) {
+      // Never fabricate an invoice for an uploaded document — surface a readable failure instead.
+      const detail = String(err?.message || 'unknown error');
+      const reason = detail.includes('no invoice line items')
+        ? 'no invoice line items could be read from the document (it may be a scanned image without readable text)'
+        : /quota|resource_exhausted|\b429\b/i.test(detail)
+          ? 'the Gemini API quota is exhausted (free tier allows 20 requests/day) — retry after it resets or use a billed API key'
+          : `the model could not read this document (${detail.slice(0, 160)})`;
+      throw new Error(reason);
+    }
     console.warn('Gemini 2.5 Flash extraction error, falling back to deterministic fixture:', err);
     const fixture = getDeterministicScenarioFixture(sanitizedText);
     if (fixture) {
@@ -503,7 +521,7 @@ function parseGenericInvoiceText(text: string): ExtractedInvoice {
     claimedTotalCarbonKg: totalCarbonKg > 0 ? totalCarbonKg : null,
     overallSustainabilityClaims: [],
     certificationReferences: [],
-    extractionSource: 'DEMO_FIXTURE',
-    isFixture: true
+    extractionSource: 'LOCAL_HEURISTIC',
+    isFixture: false
   };
 }

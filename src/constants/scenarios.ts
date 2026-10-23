@@ -81,7 +81,7 @@ IBAN: DE44500105175489021234`
     keyHighlights: [
       '+42.0% Price Variance ($26.27 vs. $18.50 benchmark)',
       '3.4× Carbon Intensity Mismatch (1.235 vs. 4.20 kg CO₂e/L)',
-      'Autonomous Pro Escalation triggered',
+      'Escalates to remediation (Pro when configured)',
       'Action: Escalated for Supplier Remediation'
     ],
     rawInvoiceText: `INVOICE: INV-2026-AIC-4409

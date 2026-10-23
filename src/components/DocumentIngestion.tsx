@@ -1,185 +1,186 @@
-import React, { useRef } from 'react';
-import { Upload, FileText, Play, RotateCcw, AlertOctagon, FileCheck, X } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { AlertTriangle, FileCheck, FileText, PencilLine, Sparkles, Upload, X } from 'lucide-react';
+import { FlowerBuddy } from './Characters';
 
 interface DocumentIngestionProps {
-  rawPayload: string;
-  onChangePayload: (val: string) => void;
   selectedFile: File | null;
   onSelectFile: (file: File | null) => void;
-  onRunAudit: () => void;
-  onReset: () => void;
-  isRunning: boolean;
+  onAutoRun: (file: File) => void;
   uploadError: string | null;
-  setUploadError: (err: string | null) => void;
+  setUploadError: (error: string | null) => void;
+  isRunning: boolean;
+  gateEnabled: boolean;
+  onPasteInstead: () => void;
 }
 
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
+
+const formatFileSize = (bytes: number) =>
+  bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+
 export const DocumentIngestion: React.FC<DocumentIngestionProps> = ({
-  rawPayload,
-  onChangePayload,
   selectedFile,
   onSelectFile,
-  onRunAudit,
-  onReset,
-  isRunning,
+  onAutoRun,
   uploadError,
   setUploadError,
+  isRunning,
+  gateEnabled,
+  onPasteInstead,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUploadError(null);
-    const file = e.target.files?.[0];
+  const validateFile = (file: File): string | null => {
+    if (file.size > MAX_FILE_BYTES) {
+      return `File size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 10 MB limit.`;
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return `Unsupported format '${file.type || 'unknown'}'. Upload a PDF, PNG, JPEG or WEBP document.`;
+    }
+    return null;
+  };
+
+  const handleFiles = (files: FileList | null) => {
+    const file = files?.[0];
+    // Reset the input so picking the same file again still fires a change event.
+    if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
 
-    // Validate size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
-      setUploadError(`File size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds maximum allowed size (10 MB).`);
+    const error = validateFile(file);
+    if (error) {
+      setUploadError(error);
+      onSelectFile(null);
       return;
     }
 
-    // Validate type
-    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      setUploadError(`Unsupported file format '${file.type}'. Please upload PDF, PNG, JPEG, or WEBP documents.`);
-      return;
-    }
-
+    setUploadError(null);
     onSelectFile(file);
-
-    // If text is currently empty, add a placeholder note
-    if (!rawPayload.trim()) {
-      onChangePayload(`[ATTACHED DOCUMENT: ${file.name} - ${(file.size / 1024).toFixed(1)} KB]
-Extracted multimodal document stream will be processed by Gemini 2.5 Flash with zero-trust safety checks.`);
-    }
+    onAutoRun(file);
   };
 
   const removeFile = () => {
     onSelectFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    setUploadError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
-    <section aria-labelledby="ingestion-title" className="bg-surface rounded-card border border-border p-4 space-y-3">
-      
-      {/* Header with Trust Boundary Label */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/80 pb-3">
-        <div className="flex items-center gap-2">
-          <FileText className="w-4 h-4 text-primary" />
-          <h2 id="ingestion-title" className="text-sm font-semibold text-text-primary">
-            Supplier Invoice Ingestion
+    <section aria-labelledby="upload-title" className="flex h-full flex-col rounded-card border border-border bg-surface p-4 shadow-card">
+      <div className="flex items-center gap-2">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-dim text-primary">
+          <Upload className="h-3.5 w-3.5" />
+        </span>
+        <div>
+          <h2 id="upload-title" className="text-sm font-extrabold tracking-tight text-white">
+            Or upload your own invoice
           </h2>
-          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-danger-dim border border-danger/40 text-danger">
-            <AlertOctagon className="w-3 h-3" />
-            UNTRUSTED INPUT BOUNDARY
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* File Upload Hidden Input */}
-          <input
-            id="invoice-file"
-            aria-label="Upload supplier invoice document"
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".pdf,.png,.jpg,.jpeg,.webp"
-            className="hidden"
-          />
-
-          <button
-            type="button"
-            disabled={isRunning}
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg bg-surface-light border border-border hover:border-text-secondary text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Upload PDF / Image</span>
-          </button>
-
-          <button
-            type="button"
-            disabled={isRunning || !rawPayload.trim()}
-            onClick={onReset}
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-surface-light border border-border hover:border-text-secondary text-text-muted hover:text-text-primary transition-colors disabled:opacity-50"
-            title="Reset to blank"
-            aria-label="Clear invoice input"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Clear</span>
-          </button>
+          <p className="text-[10px] text-text-muted">Any supplier document, not just the samples.</p>
         </div>
       </div>
 
-      {/* Upload Error Banner */}
+      <input
+        id="invoice-file"
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg,.webp"
+        className="hidden"
+        aria-label="Upload supplier invoice document"
+        onChange={(event) => handleFiles(event.target.files)}
+      />
+
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Drop an invoice here or click to choose a file"
+        onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setIsDragging(false);
+          handleFiles(event.dataTransfer.files);
+        }}
+        className={`relative mt-3 flex min-h-[128px] flex-1 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed px-4 py-5 text-center transition-colors focus-ring ${
+          isDragging
+            ? 'border-primary bg-primary-dim'
+            : 'border-white/15 bg-surface-dark/60 hover:border-primary/50 hover:bg-surface-dark'
+        } ${isRunning ? 'cursor-wait opacity-70' : ''}`}
+      >
+        <FlowerBuddy className="character pointer-events-none absolute -right-4 -top-5 h-20 w-20 opacity-90" />
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-primary">
+          <Upload className="h-4 w-4" />
+        </span>
+        <p className="mt-2 text-[11px] font-semibold text-text-primary">
+          {isRunning ? 'Auditing document — a new upload replaces it' : 'Drag & drop or click to upload'}
+        </p>
+        <p className="mt-1 text-[10px] text-text-muted">PDF, JPG, PNG · max 10 MB</p>
+        <p className="mt-2 inline-flex items-center gap-1 text-[9.5px] font-medium text-primary-light">
+          <Sparkles className="h-3 w-3" />
+          Audit starts automatically
+        </p>
+      </div>
+
       {uploadError && (
-        <div role="alert" className="p-2.5 rounded-lg bg-danger-dim border border-danger/40 text-xs text-danger flex items-center justify-between">
-          <span>{uploadError}</span>
-          <button type="button" aria-label="Dismiss upload error" onClick={() => setUploadError(null)} className="text-danger hover:text-white font-bold ml-2">×</button>
+        <div role="alert" className="mt-2 flex items-start justify-between gap-2 rounded-xl border border-danger/40 bg-danger-dim px-2.5 py-2 text-[10.5px] text-danger">
+          <span className="flex items-start gap-1.5">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {uploadError}
+          </span>
+          <button type="button" aria-label="Dismiss upload error" onClick={() => setUploadError(null)} className="text-danger hover:text-white">
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
 
-      {/* Attached File Indicator */}
       {selectedFile && (
-        <div className="flex items-center justify-between p-2 rounded-lg bg-surface-light border border-primary/30 text-xs text-text-primary">
-          <div className="flex items-center gap-2 truncate">
-            <FileCheck className="w-4 h-4 text-primary shrink-0" />
-            <span className="font-mono font-semibold truncate">{selectedFile.name}</span>
-            <span className="text-[11px] text-text-muted font-mono">
-              ({(selectedFile.size / 1024).toFixed(1)} KB, {selectedFile.type})
-            </span>
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary-dim px-2.5 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <FileCheck className="h-4 w-4 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <p className="truncate font-mono text-[10.5px] font-semibold text-text-primary">{selectedFile.name}</p>
+              <p className="text-[9.5px] text-text-muted">
+                {formatFileSize(selectedFile.size)} · {selectedFile.type}
+              </p>
+            </div>
           </div>
           <button
             type="button"
             onClick={removeFile}
-            className="p-1 hover:bg-surface rounded text-text-muted hover:text-danger transition-colors"
-            title="Remove uploaded file"
-            aria-label={`Remove uploaded file ${selectedFile.name}`}
+            aria-label={`Remove ${selectedFile.name}`}
+            className="rounded p-1 text-text-muted transition-colors hover:text-danger focus-ring"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
-      {/* Raw Monospace Textarea */}
-      <div className="relative">
-        <textarea
-          id="invoice-payload"
-          aria-label="Untrusted supplier invoice text"
-          aria-describedby="payload-help payload-count"
-          value={rawPayload}
-          onChange={(e) => onChangePayload(e.target.value)}
-          disabled={isRunning}
-          placeholder="Paste untrusted invoice text, freight manifest, or supplier billing payload here..."
-          rows={9}
-          className="w-full rounded-lg bg-surface-dark border border-border p-3 font-mono text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors resize-y leading-relaxed"
-          spellCheck={false}
-        />
-        <div id="payload-count" aria-live="polite" className="absolute bottom-2.5 right-3 text-[10px] font-mono text-text-muted pointer-events-none">
-          {rawPayload.length} chars • {rawPayload.split('\n').length} lines
-        </div>
+      <div className="mt-2 rounded-xl border border-warning/20 bg-warning-dim px-2.5 py-2 text-[9.5px] leading-relaxed text-warning/90">
+        <strong className="font-semibold">Scan boundary:</strong>{' '}
+        {gateEnabled
+          ? 'pre-flight PII and injection checks cover pasted text only. Uploaded file contents are not pre-scanned before model transit.'
+          : 'gate is disarmed. Uploaded file contents are never pre-scanned.'}
       </div>
 
-      {/* Primary Action Button */}
-      <div className="flex items-center justify-between pt-1">
-        <div id="payload-help" className="text-[11px] text-text-muted font-mono">
-          Security Gate will inspect payload before any Gemini model invocation.
-        </div>
-
-        <button
-          type="button"
-          disabled={isRunning || !rawPayload.trim()}
-          onClick={onRunAudit}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider text-black bg-primary hover:bg-primary-hover shadow-glow-emerald transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-mono ${
-            isRunning ? 'animate-pulse' : ''
-          }`}
-        >
-          <Play className="w-4 h-4 fill-current" />
-          <span>{isRunning ? 'Auditing Pipeline...' : 'Run Autonomous Audit'}</span>
-        </button>
-      </div>
-
+      <button
+        type="button"
+        onClick={onPasteInstead}
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-surface-dark px-3 py-2 text-[11px] font-semibold text-text-secondary transition-colors hover:border-primary/40 hover:text-white focus-ring"
+      >
+        <FileText className="h-3.5 w-3.5" />
+        Paste or edit text instead
+        <PencilLine className="ml-auto h-3 w-3 opacity-40" />
+      </button>
     </section>
   );
 };
