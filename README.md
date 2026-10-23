@@ -195,14 +195,15 @@ npm test
 ## Test Results
 
 ```
- ✓ tests/security.test.ts    (8 tests)  — PII detection, injection blocking, gate toggle
- ✓ tests/calculations.test.ts (6 tests) — Price variance, carbon, unit checks, 42%/3.4×
- ✓ tests/decision.test.ts    (3 tests)  — Auto-approve, escalate, quarantine routing
- ✓ tests/ledger.test.ts      (6 tests)  — SHA-256 hashing, chain verification, tamper detection
- ✓ tests/api.test.ts         (3 tests)  — End-to-end pipeline journey for all 3 scenarios
+ ✓ tests/security.test.ts             (8 tests)  — PII detection, injection blocking, gate toggle
+ ✓ tests/calculations.test.ts        (6 tests)  — Price variance, carbon, unit checks, 42%/3.4×
+ ✓ tests/decision.test.ts             (3 tests)  — Auto-approve, escalate, quarantine routing
+ ✓ tests/ledger.test.ts               (6 tests)  — SHA-256 hashing, chain verification, tamper detection
+ ✓ tests/api.test.ts                  (3 tests)  — End-to-end pipeline journey for all 3 scenarios
+ ✓ tests/backend-validation.test.ts  (5 tests)  — API validation, rate limiting, model-output normalization
 
- Test Files  5 passed (5)
-      Tests  26 passed (26)
+ Test Files  6 passed (6)
+      Tests  31 passed (31)
 ```
 
 ---
@@ -232,7 +233,8 @@ Main audit pipeline endpoint.
 ```
 ├── server/
 │   ├── index.ts            # Express server, /api/audit endpoint
-│   └── gemini.ts           # Gemini SDK integration + demo fixtures
+│   ├── gemini.ts           # Gemini SDK integration + demo fixtures
+│   └── validation.ts       # Request bounds, tolerance validation, IP rate limiter
 ├── src/
 │   ├── App.tsx             # Main dashboard orchestrator
 │   ├── main.tsx            # React entry point
@@ -258,6 +260,7 @@ Main audit pipeline endpoint.
 │       ├── AuditLedger.tsx        # Immutable hash-chained log table
 │       └── BenchmarkModal.tsx     # Reference catalog inspector modal
 ├── tests/
+│   ├── backend-validation.test.ts # API abuse controls and model payload normalization
 │   ├── security.test.ts
 │   ├── calculations.test.ts
 │   ├── decision.test.ts

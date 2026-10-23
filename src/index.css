@@ -5,8 +5,21 @@
 @layer base {
   body {
     @apply bg-background text-text-primary;
+    background-image: radial-gradient(circle at 78% 0%, rgba(66, 102, 180, 0.12), transparent 30rem), linear-gradient(135deg, #07101d 0%, #090d16 48%, #0b1220 100%);
+    background-attachment: fixed;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
+}
+
+@layer components {
+  .brand-mark { @apply w-11 h-11 rounded-2xl flex items-center justify-center border border-emerald-300/30; background: linear-gradient(145deg, #5ef08a, #14a86e); box-shadow: 0 0 24px rgba(74, 222, 128, 0.28); }
+  .sidebar-link { @apply w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-300 transition-all duration-200; }
+  .sidebar-link:hover { @apply bg-white/5 text-white; }
+  .sidebar-link-active { @apply bg-[#8dff90] text-slate-950 font-bold shadow-[0_8px_24px_rgba(141,255,144,0.16)]; }
+  .telemetry-card-green { background: linear-gradient(135deg, #baffb9, #8ee897); color: #102b19; border-color: rgba(181, 255, 180, 0.35); }
+  .telemetry-card-yellow { background: linear-gradient(135deg, #ffe8a7, #ffd17a); color: #3c2a09; border-color: rgba(255, 224, 145, 0.35); }
+  .telemetry-card-blue { background: linear-gradient(135deg, #c1eaff, #88cdf2); color: #0b2942; border-color: rgba(177, 229, 255, 0.35); }
+  .telemetry-card-green .text-text-muted, .telemetry-card-yellow .text-text-muted, .telemetry-card-blue .text-text-muted { color: inherit; opacity: .72; }
 }
 
 /* Custom scrollbars */

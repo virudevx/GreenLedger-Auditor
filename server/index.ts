@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -9,6 +9,7 @@ import { verifyInvoiceLineItems, evaluateDecisionPolicy, DEFAULT_VERIFICATION_CO
 import { extractInvoiceWithGemini, escalateToGeminiPro, isGeminiConfigured } from './gemini';
 import { BENCHMARK_CATALOG, BENCHMARK_DATASET_VERSION } from '../src/constants/benchmarks';
 import { ExtractedInvoice } from '../src/types/audit';
+import { createRateLimiter, MAX_RAW_PAYLOAD_LENGTH, parseAuditRequest, validateRawPayload } from './validation';
 
 // Load environment variables from .env
 dotenv.config();
@@ -18,10 +19,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
-const MAX_RAW_PAYLOAD_LENGTH = 250_000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 30;
-const requestCounts = new Map<string, { count: number; resetAt: number }>();
+const isRequestAllowed = createRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS, maxRequests: RATE_LIMIT_MAX_REQUESTS });
 
 // Middleware
 const allowedOrigin = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
@@ -35,18 +35,10 @@ app.use((_req, res, next) => {
   next();
 });
 app.use((req, res, next) => {
-  const now = Date.now();
-  const key = req.ip || 'unknown';
-  const current = requestCounts.get(key);
-  if (!current || current.resetAt <= now) {
-    requestCounts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return next();
-  }
-  if (current.count >= RATE_LIMIT_MAX_REQUESTS) {
+  if (!isRequestAllowed(req.ip || 'unknown')) {
     res.status(429).json({ success: false, error: 'Too many requests. Please retry shortly.' });
     return;
   }
-  current.count += 1;
   next();
 });
 app.use(express.json({ limit: '15mb' }));
@@ -96,12 +88,8 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
   const isoStartTime = new Date().toISOString();
 
   try {
-    let rawPayload = req.body.rawPayload || '';
-    const gateEnabled = req.body.gateEnabled !== 'false' && req.body.gateEnabled !== false;
-    const config = {
-      priceVarianceTolerancePercent: req.body.priceTolerance ? parseFloat(req.body.priceTolerance) : DEFAULT_VERIFICATION_CONFIG.priceVarianceTolerancePercent,
-      carbonVarianceTolerancePercent: req.body.carbonTolerance ? parseFloat(req.body.carbonTolerance) : DEFAULT_VERIFICATION_CONFIG.carbonVarianceTolerancePercent
-    };
+    let rawPayload = typeof req.body.rawPayload === 'string' ? req.body.rawPayload : '';
+    const { gateEnabled, config } = parseAuditRequest(req.body);
 
     let fileData: { mimeType: string; base64: string } | undefined = undefined;
     if (req.file) {
@@ -114,13 +102,6 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
       }
     }
 
-    if (!rawPayload || !rawPayload.trim()) {
-      res.status(400).json({
-        success: false,
-        error: 'Missing rawPayload or uploaded invoice document.'
-      });
-      return;
-    }
     if (rawPayload.length > MAX_RAW_PAYLOAD_LENGTH) {
       res.status(413).json({
         success: false,
@@ -128,10 +109,9 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
       });
       return;
     }
-
-    if (!Number.isFinite(config.priceVarianceTolerancePercent) || config.priceVarianceTolerancePercent < 0 || config.priceVarianceTolerancePercent > 1000 ||
-        !Number.isFinite(config.carbonVarianceTolerancePercent) || config.carbonVarianceTolerancePercent < 0 || config.carbonVarianceTolerancePercent > 1000) {
-      res.status(400).json({ success: false, error: 'Tolerance values must be numbers between 0 and 1000.' });
+    const payloadError = validateRawPayload(rawPayload, Boolean(req.file));
+    if (payloadError) {
+      res.status(400).json({ success: false, error: payloadError });
       return;
     }
 
@@ -247,6 +227,15 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
       error: err.message || 'An unexpected internal error occurred during audit pipeline execution.'
     });
   }
+});
+
+// Keep API errors JSON-shaped even when multipart parsing rejects a request.
+app.use('/api', (err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  res.status(400).json({ success: false, error: err.message || 'Invalid API request.' });
+});
+
+app.use('/api', (_req: Request, res: Response) => {
+  res.status(404).json({ success: false, error: 'API route not found.' });
 });
 
 // Production: serve built static frontend assets

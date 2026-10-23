@@ -44,7 +44,7 @@ export const TelemetryHeader: React.FC<TelemetryHeaderProps> = ({
           <div className="flex flex-wrap items-center gap-3">
             
             {/* Telemetry Metric: Latency */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface border border-border text-xs">
+            <div className="telemetry-card telemetry-card-green flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs">
               <Clock className="w-3.5 h-3.5 text-text-muted" />
               <div className="flex flex-col">
                 <span className="text-[10px] text-text-muted leading-none uppercase font-mono">Audit Latency</span>
@@ -55,7 +55,7 @@ export const TelemetryHeader: React.FC<TelemetryHeaderProps> = ({
             </div>
 
             {/* Telemetry Metric: Model Tier */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface border border-border text-xs">
+            <div className="telemetry-card telemetry-card-yellow flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs">
               <Zap className="w-3.5 h-3.5 text-primary-light" />
               <div className="flex flex-col">
                 <span className="text-[10px] text-text-muted leading-none uppercase font-mono">Active Model Tier</span>
@@ -66,7 +66,7 @@ export const TelemetryHeader: React.FC<TelemetryHeaderProps> = ({
             </div>
 
             {/* Telemetry Metric: Token Savings */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface border border-border text-xs">
+            <div className="telemetry-card telemetry-card-blue flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs">
               <Database className="w-3.5 h-3.5 text-emerald-400" />
               <div className="flex flex-col">
                 <span className="text-[10px] text-text-muted leading-none uppercase font-mono">Est. Token Savings</span>

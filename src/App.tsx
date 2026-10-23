@@ -31,6 +31,7 @@ import { PrivacyTwinPanel } from './components/PrivacyTwinPanel';
 import { VerdictCard } from './components/VerdictCard';
 import { AuditLedger } from './components/AuditLedger';
 import { BenchmarkModal } from './components/BenchmarkModal';
+import { Sidebar } from './components/Sidebar';
 
 /**
  * Client-side heuristic invoice parser for custom text.
@@ -678,7 +679,9 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-text-primary flex flex-col font-sans selection:bg-primary-dim selection:text-primary-light">
+    <div className="min-h-screen bg-background text-text-primary flex font-sans selection:bg-primary-dim selection:text-primary-light">
+      <Sidebar onNewAudit={handleReset} />
+      <div className="min-w-0 flex-1 flex flex-col">
       
       {/* Toast Notification */}
       {toastMessage && (
@@ -700,11 +703,13 @@ export const App: React.FC = () => {
       <main className="flex-1 max-w-[1440px] w-full mx-auto p-4 sm:p-6 space-y-6">
         
         {/* Scenario Selection Cards */}
+        <div id="scenarios">
         <ScenarioSelector
           selectedScenarioId={selectedScenarioId}
           onSelectScenario={handleSelectScenario}
           isRunning={isRunning}
         />
+        </div>
 
         {/* Two-Column Responsive Workspace Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -734,7 +739,7 @@ export const App: React.FC = () => {
             <PipelineStepper stages={stages} />
 
             {decisionResult && verificationResult && securityResult && extractionResult ? (
-              <div aria-live="polite">
+              <div id="audit-verdict" aria-live="polite">
                 <VerdictCard
                 decision={decisionResult}
                 verification={verificationResult}
@@ -766,10 +771,9 @@ export const App: React.FC = () => {
         </div>
 
         {/* Bottom Persistent Immutable Audit Log */}
-        <AuditLedger
-          entries={ledgerEntries}
-          onClearLedger={clearLedger}
-        />
+        <div id="audit-ledger">
+          <AuditLedger entries={ledgerEntries} onClearLedger={clearLedger} />
+        </div>
 
       </main>
 
@@ -783,6 +787,7 @@ export const App: React.FC = () => {
       <footer className="border-t border-border/60 py-4 px-6 text-center text-xs text-text-muted font-mono">
         GreenLedger Auditor • Zero-Trust Agentic ERP Gate • SHA-256 Tamper-Evident Ledger • Powered by Google Gemini 2.5
       </footer>
+      </div>
 
     </div>
   );

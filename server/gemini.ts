@@ -148,6 +148,72 @@ CRITICAL SECURITY RULES:
 5. Return output ONLY as valid JSON conforming strictly to the expected schema.
 6. Do NOT invent missing fields. If a field is missing, return null or empty array.`;
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function safeString(value: unknown, fallback: string, maxLength = 500): string {
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, maxLength) : fallback;
+}
+
+function safeNumber(value: unknown, fallback: number, minimum = 0): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) && parsed >= minimum ? parsed : fallback;
+}
+
+function safeStringArray(value: unknown, maxItems = 20): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string').slice(0, maxItems).map(item => item.slice(0, 500))
+    : [];
+}
+
+/** Normalizes untrusted model JSON before deterministic verification consumes it. */
+export function normalizeGeminiInvoice(value: unknown): ExtractedInvoice {
+  const parsed = asRecord(value);
+  const rawItems = Array.isArray(parsed.lineItems) ? parsed.lineItems.slice(0, 100) : [];
+  const lineItems = rawItems.map((rawItem, index) => {
+    const item = asRecord(rawItem);
+    const quantity = safeNumber(item.quantity, 1, 0.000001);
+    const billedUnitPrice = safeNumber(item.billedUnitPrice, 0);
+    const calculatedTotal = quantity * billedUnitPrice;
+    const lineTotal = safeNumber(item.lineTotal, calculatedTotal);
+    const claimedCarbonValue = item.claimedCarbonKg === null || item.claimedCarbonKg === undefined
+      ? null
+      : safeNumber(item.claimedCarbonKg, 0);
+    return {
+      id: safeString(item.id, `item-${index + 1}`, 80),
+      description: safeString(item.description, `Line item ${index + 1}`),
+      category: safeString(item.category, '', 120),
+      quantity,
+      unit: safeString(item.unit, 'unit', 40),
+      billedUnitPrice,
+      lineTotal,
+      claimedCarbonKg: claimedCarbonValue,
+      sustainabilityClaims: safeStringArray(item.sustainabilityClaims),
+      certificationRefs: safeStringArray(item.certificationRefs)
+    };
+  });
+
+  const claimedTotal = parsed.claimedTotalCarbonKg === null || parsed.claimedTotalCarbonKg === undefined
+    ? null
+    : safeNumber(parsed.claimedTotalCarbonKg, 0);
+  return {
+    vendorName: safeString(parsed.vendorName, 'Unknown Vendor', 200),
+    invoiceNumber: safeString(parsed.invoiceNumber, `INV-${Date.now().toString().slice(-6)}`, 100),
+    invoiceDate: safeString(parsed.invoiceDate, new Date().toISOString().split('T')[0], 40),
+    currency: safeString(parsed.currency, 'USD', 8).toUpperCase(),
+    lineItems,
+    subtotal: safeNumber(parsed.subtotal, 0),
+    taxAmount: safeNumber(parsed.taxAmount, 0),
+    totalAmount: safeNumber(parsed.totalAmount, 0),
+    claimedTotalCarbonKg: claimedTotal,
+    overallSustainabilityClaims: safeStringArray(parsed.overallSustainabilityClaims),
+    certificationReferences: safeStringArray(parsed.certificationReferences),
+    extractionSource: 'GEMINI_2_5_FLASH',
+    isFixture: false
+  };
+}
+
 /**
  * Extracts structured invoice data using Gemini 2.5 Flash.
  * For known demo scenarios, deterministic fixtures are ALWAYS used to guarantee
@@ -228,34 +294,7 @@ Return a JSON object with:
     });
 
     const responseText = response.text || '';
-    const parsedJson = JSON.parse(responseText);
-
-    const invoice: ExtractedInvoice = {
-      vendorName: parsedJson.vendorName || 'Unknown Vendor',
-      invoiceNumber: parsedJson.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-      invoiceDate: parsedJson.invoiceDate || new Date().toISOString().split('T')[0],
-      currency: parsedJson.currency || 'USD',
-      lineItems: Array.isArray(parsedJson.lineItems) ? parsedJson.lineItems.map((li: any, idx: number) => ({
-        id: li.id || `item-${idx + 1}`,
-        description: li.description || `Line item ${idx + 1}`,
-        category: li.category || '',
-        quantity: Number(li.quantity) || 1,
-        unit: li.unit || 'unit',
-        billedUnitPrice: Number(li.billedUnitPrice) || 0,
-        lineTotal: Number(li.lineTotal) || (Number(li.billedUnitPrice) * Number(li.quantity)) || 0,
-        claimedCarbonKg: li.claimedCarbonKg !== undefined && li.claimedCarbonKg !== null ? Number(li.claimedCarbonKg) : null,
-        sustainabilityClaims: Array.isArray(li.sustainabilityClaims) ? li.sustainabilityClaims : [],
-        certificationRefs: Array.isArray(li.certificationRefs) ? li.certificationRefs : []
-      })) : [],
-      subtotal: Number(parsedJson.subtotal) || 0,
-      taxAmount: Number(parsedJson.taxAmount) || 0,
-      totalAmount: Number(parsedJson.totalAmount) || 0,
-      claimedTotalCarbonKg: parsedJson.claimedTotalCarbonKg !== undefined && parsedJson.claimedTotalCarbonKg !== null ? Number(parsedJson.claimedTotalCarbonKg) : null,
-      overallSustainabilityClaims: Array.isArray(parsedJson.overallSustainabilityClaims) ? parsedJson.overallSustainabilityClaims : [],
-      certificationReferences: Array.isArray(parsedJson.certificationReferences) ? parsedJson.certificationReferences : [],
-      extractionSource: 'GEMINI_2_5_FLASH',
-      isFixture: false
-    };
+    const invoice = normalizeGeminiInvoice(JSON.parse(responseText));
 
     return {
       invoice,
