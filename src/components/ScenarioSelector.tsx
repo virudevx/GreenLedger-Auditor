@@ -14,9 +14,9 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({
   isRunning,
 }) => {
   return (
-    <div className="space-y-3">
+    <section aria-labelledby="scenario-title" className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-xs font-mono font-semibold tracking-wider text-text-secondary uppercase flex items-center gap-1.5">
+        <h2 id="scenario-title" className="text-xs font-mono font-semibold tracking-wider text-text-secondary uppercase flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-primary" />
           <span>Evaluation Scenarios</span>
         </h2>
@@ -45,6 +45,8 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({
             <button
               key={scenario.id}
               disabled={isRunning}
+              aria-pressed={isSelected}
+              aria-label={`${scenario.title}, expected verdict ${scenario.expectedVerdict.replace('_', ' ')}`}
               onClick={() => onSelectScenario(scenario)}
               className={`text-left p-3.5 rounded-card bg-surface transition-all duration-200 relative overflow-hidden flex flex-col justify-between border ${borderColor} ${
                 isSelected ? 'shadow-md bg-surface-card' : 'hover:bg-surface-light/40'
@@ -90,6 +92,6 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({
           );
         })}
       </div>
-    </div>
+    </section>
   );
 };

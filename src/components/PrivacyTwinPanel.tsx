@@ -74,13 +74,13 @@ export const PrivacyTwinPanel: React.FC<PrivacyTwinPanelProps> = ({
   const sanitizedDisplay = securityResult ? securityResult.sanitizedPayload : rawInput;
 
   return (
-    <div className="bg-surface rounded-card border border-border p-4 space-y-3">
+    <section aria-labelledby="privacy-twin-title" className="bg-surface rounded-card border border-border p-4 space-y-3">
       
       {/* Header and View Selector */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/80 pb-3">
         <div className="flex items-center gap-2">
           <Eye className="w-4 h-4 text-primary" />
-          <h2 className="text-sm font-semibold text-text-primary">
+          <h2 id="privacy-twin-title" className="text-sm font-semibold text-text-primary">
             Privacy Twin: Trust Boundary Inspector
           </h2>
         </div>
@@ -90,6 +90,8 @@ export const PrivacyTwinPanel: React.FC<PrivacyTwinPanelProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('raw')}
+            aria-selected={activeTab === 'raw'}
+            role="tab"
             className={`px-3 py-1 rounded text-xs font-mono font-medium transition-colors ${
               activeTab === 'raw'
                 ? 'bg-surface-light text-text-primary border border-border'
@@ -101,6 +103,8 @@ export const PrivacyTwinPanel: React.FC<PrivacyTwinPanelProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('sanitized')}
+            aria-selected={activeTab === 'sanitized'}
+            role="tab"
             className={`px-3 py-1 rounded text-xs font-mono font-medium transition-colors ${
               activeTab === 'sanitized'
                 ? 'bg-primary-dim text-primary-light border border-primary/30'
@@ -138,7 +142,9 @@ export const PrivacyTwinPanel: React.FC<PrivacyTwinPanelProps> = ({
         </div>
 
         <button
+          type="button"
           onClick={() => handleCopy(activeTab === 'raw' ? rawInput : sanitizedDisplay)}
+          aria-label={`Copy ${activeTab === 'raw' ? 'raw' : 'sanitized'} payload`}
           className="flex items-center gap-1 text-[11px] text-text-secondary hover:text-text-primary transition-colors"
           title="Copy payload to clipboard"
         >
@@ -177,10 +183,10 @@ export const PrivacyTwinPanel: React.FC<PrivacyTwinPanelProps> = ({
           Amber highlights sensitive PII redacted before external API transit. Red wavy highlights identify adversarial jailbreaks.
         </span>
         <span className="text-[10px] font-mono">
-          GDPR Art. 6 / CCPA Compliant
+          PII redaction safeguards • Review required for regulatory compliance
         </span>
       </div>
 
-    </div>
+    </section>
   );
 };

@@ -682,7 +682,7 @@ export const App: React.FC = () => {
       
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-xl bg-surface border border-primary/40 text-xs font-mono text-primary-light shadow-2xl flex items-center gap-2 animate-bounce">
+        <div role="status" aria-live="polite" className="fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-xl bg-surface border border-primary/40 text-xs font-mono text-primary-light shadow-2xl flex items-center gap-2 animate-bounce">
           <span className="w-2 h-2 rounded-full bg-primary inline-block"></span>
           <span>{toastMessage}</span>
         </div>
@@ -734,7 +734,8 @@ export const App: React.FC = () => {
             <PipelineStepper stages={stages} />
 
             {decisionResult && verificationResult && securityResult && extractionResult ? (
-              <VerdictCard
+              <div aria-live="polite">
+                <VerdictCard
                 decision={decisionResult}
                 verification={verificationResult}
                 security={securityResult}
@@ -745,7 +746,8 @@ export const App: React.FC = () => {
                 onReset={handleReset}
                 isCommitted={isCommitted}
                 isQuarantined={isQuarantined}
-              />
+                />
+              </div>
             ) : (
               <div className="bg-surface rounded-card border border-border p-8 text-center space-y-3">
                 <div className="w-12 h-12 rounded-2xl bg-surface-dark border border-border flex items-center justify-center mx-auto text-text-muted">

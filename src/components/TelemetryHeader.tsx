@@ -80,7 +80,9 @@ export const TelemetryHeader: React.FC<TelemetryHeaderProps> = ({
 
             {/* Benchmark Catalog Button */}
             <button
+              type="button"
               onClick={onOpenBenchmarkCatalog}
+              aria-label="Open benchmark catalog"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border hover:border-text-secondary text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
               title="Inspect 8-Category Reference Benchmark Catalog"
             >
@@ -93,6 +95,8 @@ export const TelemetryHeader: React.FC<TelemetryHeaderProps> = ({
               <button
                 type="button"
                 onClick={onToggleGate}
+                aria-pressed={gateEnabled}
+                aria-label={gateEnabled ? 'Disable security gate' : 'Enable security gate'}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold tracking-wide border transition-all duration-200 ${
                   gateEnabled
                     ? 'bg-primary-dim border-primary/50 text-primary-light hover:bg-primary-dim/80'
@@ -127,7 +131,9 @@ export const TelemetryHeader: React.FC<TelemetryHeaderProps> = ({
               </div>
             </div>
             <button
+              type="button"
               onClick={onToggleGate}
+              aria-label="Re-enable security gate"
               className="shrink-0 px-2 py-0.5 text-[11px] font-bold rounded bg-danger text-white hover:bg-danger-hover transition-colors uppercase font-mono"
             >
               Re-Enable Gate

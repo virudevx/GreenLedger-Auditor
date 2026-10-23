@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { BENCHMARK_CATALOG, BENCHMARK_DATASET_VERSION } from '../constants/benchmarks';
 import { X, BookOpen, CheckCircle2, Info, ExternalLink } from 'lucide-react';
 
@@ -8,13 +8,28 @@ interface BenchmarkModalProps {
 }
 
 export const BenchmarkModal: React.FC<BenchmarkModalProps> = ({ isOpen, onClose }) => {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn" role="presentation" onMouseDown={onClose}>
       <div 
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="benchmark-modal-title"
         className="w-full max-w-4xl max-h-[90vh] bg-surface border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between bg-surface-dark">
@@ -23,7 +38,7 @@ export const BenchmarkModal: React.FC<BenchmarkModalProps> = ({ isOpen, onClose 
               <BookOpen className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-text-primary">
+              <h2 id="benchmark-modal-title" className="text-base sm:text-lg font-bold text-text-primary">
                 Trusted Reference Benchmark Catalog
               </h2>
               <p className="text-xs text-text-secondary font-mono">
@@ -32,6 +47,9 @@ export const BenchmarkModal: React.FC<BenchmarkModalProps> = ({ isOpen, onClose 
             </div>
           </div>
           <button
+            ref={closeButtonRef}
+            type="button"
+            aria-label="Close benchmark catalog"
             onClick={onClose}
             className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-light transition-colors"
           >
@@ -103,6 +121,8 @@ export const BenchmarkModal: React.FC<BenchmarkModalProps> = ({ isOpen, onClose 
             Immutable trusted memory registry
           </span>
           <button
+            type="button"
+            aria-label="Close benchmark catalog"
             onClick={onClose}
             className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-surface-light border border-border hover:bg-surface text-text-primary transition-colors"
           >

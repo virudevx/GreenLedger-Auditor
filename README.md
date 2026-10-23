@@ -38,10 +38,13 @@ Then edit `.env` and add your Gemini API key:
 
 ```env
 PORT=3001
+ALLOWED_ORIGIN=http://localhost:5173
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 > **Security Note:** The API key is only used server-side. It is never exposed to the browser, Vite `VITE_*` variables, or client-side JavaScript.
+
+> **Production Security:** Set `ALLOWED_ORIGIN` to the exact public frontend origin. The API also applies security headers, request throttling, payload-size validation, and strict tolerance validation.
 
 > **Without an API key**, the application runs fully using deterministic demonstration fixtures. All three scenarios produce correct results with clearly labeled `[DEMO FIXTURE]` extraction.
 
@@ -168,7 +171,7 @@ npm test
 
 ### AI Integration
 - **Gemini 2.5 Flash** for standard structured extraction
-- **Gemini 2.5 Pro** for escalated deep compliance analysis
+- **Gemini 3.1 Pro Preview** for escalated deep compliance analysis, with Gemini 2.5 Flash fallback
 - **Server-side API key handling** — never exposed to browser
 - **Graceful degradation** — fully functional without API key
 
@@ -283,7 +286,9 @@ Main audit pipeline endpoint.
 
 5. **File upload extraction** (PDF/images) requires a configured Gemini API key for real multimodal extraction. Without a key, the application provides a text-based fallback.
 
-6. **Gemini 2.5 Pro escalation** requires the model to be available through the configured API key and quota. If unavailable, deterministic findings are preserved and the escalation is marked as failed.
+6. **Gemini escalation** requires the configured model to be available through the API key and quota. If unavailable, deterministic findings are preserved and the escalation is marked as failed.
+
+7. **Accessibility and resilience:** The dashboard provides semantic regions, live status announcements, keyboard-closeable benchmark dialogs, reduced-motion support, and graceful backend/offline fallback. Full regulatory compliance still requires deployment-specific review.
 
 ---
 

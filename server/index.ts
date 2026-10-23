@@ -18,9 +18,37 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+const MAX_RAW_PAYLOAD_LENGTH = 250_000;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 30;
+const requestCounts = new Map<string, { count: number; resetAt: number }>();
 
 // Middleware
-app.use(cors());
+const allowedOrigin = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
+app.use(cors({ origin: allowedOrigin }));
+app.disable('x-powered-by');
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+app.use((req, res, next) => {
+  const now = Date.now();
+  const key = req.ip || 'unknown';
+  const current = requestCounts.get(key);
+  if (!current || current.resetAt <= now) {
+    requestCounts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return next();
+  }
+  if (current.count >= RATE_LIMIT_MAX_REQUESTS) {
+    res.status(429).json({ success: false, error: 'Too many requests. Please retry shortly.' });
+    return;
+  }
+  current.count += 1;
+  next();
+});
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
@@ -47,7 +75,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
     version: '1.0.0',
     geminiConfigured: isGeminiConfigured(),
     activePrimaryModel: isGeminiConfigured() ? 'gemini-2.5-flash' : 'demo-deterministic-fixtures',
-    activeEscalationModel: isGeminiConfigured() ? 'gemini-2.5-pro' : 'deterministic-rules-engine',
+    activeEscalationModel: isGeminiConfigured() ? 'gemini-3.1-pro-preview (2.5-flash fallback)' : 'deterministic-rules-engine',
     benchmarkVersion: BENCHMARK_DATASET_VERSION,
     timestamp: new Date().toISOString()
   });
@@ -91,6 +119,19 @@ app.post('/api/audit', upload.single('file'), async (req: Request, res: Response
         success: false,
         error: 'Missing rawPayload or uploaded invoice document.'
       });
+      return;
+    }
+    if (rawPayload.length > MAX_RAW_PAYLOAD_LENGTH) {
+      res.status(413).json({
+        success: false,
+        error: `rawPayload exceeds the maximum allowed length of ${MAX_RAW_PAYLOAD_LENGTH.toLocaleString()} characters.`
+      });
+      return;
+    }
+
+    if (!Number.isFinite(config.priceVarianceTolerancePercent) || config.priceVarianceTolerancePercent < 0 || config.priceVarianceTolerancePercent > 1000 ||
+        !Number.isFinite(config.carbonVarianceTolerancePercent) || config.carbonVarianceTolerancePercent < 0 || config.carbonVarianceTolerancePercent > 1000) {
+      res.status(400).json({ success: false, error: 'Tolerance values must be numbers between 0 and 1000.' });
       return;
     }
 
