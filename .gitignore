@@ -9,6 +9,9 @@ out/
 coverage/
 *.tsbuildinfo
 
+# Generated serverless bundle (built by scripts/build-api.mjs)
+api/audit.mjs
+
 # Environment files and secrets
 .env
 .env.*

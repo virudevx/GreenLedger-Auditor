@@ -8,7 +8,8 @@
     "dev:backend": "tsx watch server/index.ts",
     "dev": "concurrently -k -p \"[{name}]\" -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:frontend": "tsc -b && vite build",
-    "build": "npm run build:frontend",
+    "build:api": "node scripts/build-api.mjs",
+    "build": "npm run build:frontend && npm run build:api",
     "start": "tsx server/index.ts",
     "test": "vitest run",
     "test:watch": "vitest"
