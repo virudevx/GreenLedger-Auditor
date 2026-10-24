@@ -7,11 +7,14 @@ import { build } from 'esbuild';
  * directory. A handler whose imports reach outside api/ therefore dies at load
  * with ERR_MODULE_NOT_FOUND ("Cannot find module '/var/task/server/app'"), which
  * surfaces as FUNCTION_INVOCATION_FAILED on every request. Emitting a single
- * .mjs file means the deployed function has no project imports left to resolve.
+ * single file means the deployed function has no project imports left to resolve.
+ *
+ * The output is committed because Vercel only collects `api/` entry points that
+ * exist in the checkout; a file created solely by the build command is missed.
  */
 const result = await build({
   entryPoints: ['server/vercel-entry.ts'],
-  outfile: 'api/audit.mjs',
+  outfile: 'api/audit.js',
   bundle: true,
   platform: 'node',
   format: 'esm',
@@ -28,4 +31,4 @@ if (result.errors.length > 0) {
   process.exit(1);
 }
 
-console.log('[build-api] wrote api/audit.mjs');
+console.log('[build-api] wrote api/audit.js');
