@@ -297,7 +297,18 @@ Main audit pipeline endpoint.
 
 ## Deployment
 
-### Vercel / Railway / Render
+### Vercel
+
+`api/audit.ts` mounts the shared Express app (`server/app.ts`) as a serverless function, so the hosted site serves `/api/audit` next to the static `dist` build — one implementation for local dev and production.
+
+1. Set `GEMINI_API_KEY` in Project → Settings → Environment Variables (without it, pasted text still works through the deterministic engine, while uploaded documents report that they need the document-reading API)
+2. Build command: `npm run build` (output directory: `dist`)
+3. No routing config needed — Vercel picks up `api/` automatically
+4. Uploaded files above the platform's request-body limit (~4.5 MB) are rejected before reaching the function
+
+If a deployment exposes no API at all, pasted text and the demo scenarios still run entirely in the browser through the deterministic engine; uploaded documents say the API is missing instead of reporting a rejected document.
+
+### Railway / Render (single Node process)
 
 1. Set `GEMINI_API_KEY` as an environment variable
 2. Build command: `npm run build`

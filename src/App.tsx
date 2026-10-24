@@ -315,6 +315,7 @@ export const App: React.FC = () => {
       let rejectedByServer = false;
       let upstreamError: string | null = null;
       let serverMessage: string | null = null;
+      let auditApiUnavailable = false;
 
       try {
         const formData = new FormData();
@@ -324,8 +325,18 @@ export const App: React.FC = () => {
 
         const response = await fetch('/api/audit', { method: 'POST', body: formData, signal: abortController.signal });
         if (runId !== runIdRef.current) return;
-        if (response.ok) {
+
+        const contentType = response.headers.get('content-type') || '';
+        const respondsWithJson = contentType.includes('application/json');
+
+        if (response.ok && respondsWithJson) {
           responseData = await response.json();
+        } else if (!respondsWithJson || [404, 405, 501].includes(response.status)) {
+          // No audit API at this origin (a static-only deployment, or a host that
+          // answers unknown POST routes with its SPA shell). Never surface this as a
+          // rejected document: text audits continue in the in-browser engine.
+          auditApiUnavailable = true;
+          console.warn(`Audit API unavailable at this origin (HTTP ${response.status}).`);
         } else {
           const errorBody = await response.json().catch(() => null);
           console.warn('Audit endpoint rejected the request:', response.status, errorBody?.error);
@@ -341,13 +352,20 @@ export const App: React.FC = () => {
         if (networkError?.name === 'AbortError' || runId !== runIdRef.current) return;
         if (file) {
           upstreamError =
-            'Backend unreachable — uploaded documents cannot be audited offline. Start the API server (npm run dev) or paste the invoice text instead.';
+            'Uploaded documents need the document-reading API, which is not reachable from this deployment. Paste the invoice text instead, or run the backend locally with `npm start`.';
         } else {
           console.warn('Backend unreachable; running the deterministic local pipeline.', networkError);
+          auditApiUnavailable = true;
         }
       }
 
       if (runId !== runIdRef.current) return;
+
+      if (auditApiUnavailable && file) {
+        // A file cannot be read without the API; say so instead of faking a verdict.
+        upstreamError =
+          'Uploaded documents need the document-reading API, which is not available in this deployment. Paste the invoice text instead, or run the backend locally with `npm start`.';
+      }
 
       if (rejectedByServer || upstreamError) {
         const failureMessage = upstreamError || serverMessage || 'The server rejected this document before processing.';
