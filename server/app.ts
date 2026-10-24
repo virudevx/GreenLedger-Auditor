@@ -1,9 +1,7 @@
 import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import path from 'path';
 import multer from 'multer';
-import { fileURLToPath } from 'url';
 import { runPreFlightSecurityScan } from '../src/utils/security';
 import { verifyInvoiceLineItems, evaluateDecisionPolicy, DEFAULT_VERIFICATION_CONFIG } from '../src/utils/verification';
 import { extractInvoiceWithGemini, escalateToGeminiPro, isGeminiConfigured } from './gemini';
@@ -14,9 +12,10 @@ import { createRateLimiter, hasValidFileSignature, MAX_RAW_PAYLOAD_LENGTH, parse
 // Load environment variables from .env
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
+// No filesystem or module-URL access here on purpose: this module is bundled by
+// the serverless builder in whichever module format it chooses, and `import.meta`
+// is erased in a CommonJS emit (which crashed the hosted function at load time).
+// Static frontend serving lives in server/index.ts, the only long-lived process.
 const app = express();
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 30;
@@ -267,15 +266,6 @@ app.use('/api', (err: Error, _req: Request, res: Response, _next: NextFunction) 
 
 app.use('/api', (_req: Request, res: Response) => {
   res.status(404).json({ success: false, error: 'API route not found.' });
-});
-
-// Production: serve built static frontend assets
-const distPath = path.join(__dirname, '../dist');
-app.use(express.static(distPath));
-
-// For SPA routing in production
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
 });
 
 
