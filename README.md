@@ -299,11 +299,13 @@ Main audit pipeline endpoint.
 
 ### Vercel
 
-`api/audit.ts` mounts the shared Express app (`server/app.ts`) as a serverless function, so the hosted site serves `/api/audit` next to the static `dist` build — one implementation for local dev and production.
+Vercel transpiles each file under `api/` separately and deploys only that directory. A handler that imports `../server/app` — or anything under `src/` — is therefore missing at runtime and fails while the module loads, which Vercel reports as `FUNCTION_INVOCATION_FAILED` on every request. The function is shipped as one self-contained bundle instead: `scripts/build-api.mjs` bundles `server/vercel-entry.ts` into `api/audit.js`, and `npm run build` regenerates it.
+
+`api/audit.js` is committed because a function entry that appeared only after the build was not picked up in testing. That is the observed behaviour, not an isolated cause: the attempt that failed also changed the entry extension (`.mjs` → `.js`), so either an unsupported extension or a build-time-generated entry explains it. The committed `.js` is the version known to deploy. `npm test` rebuilds the bundle and fails if it disagrees with the committed file, so the artifact cannot drift from its source silently.
 
 1. Set `GEMINI_API_KEY` in Project → Settings → Environment Variables (without it, pasted text still works through the deterministic engine, while uploaded documents report that they need the document-reading API)
 2. Build command: `npm run build` (output directory: `dist`)
-3. No routing config needed — Vercel picks up `api/` automatically
+3. No routing config needed — Vercel picks up `api/audit.js` automatically
 4. Uploaded files above the platform's request-body limit (~4.5 MB) are rejected before reaching the function
 
 If a deployment exposes no API at all, pasted text and the demo scenarios still run entirely in the browser through the deterministic engine; uploaded documents say the API is missing instead of reporting a rejected document.
