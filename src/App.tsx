@@ -331,14 +331,27 @@ export const App: React.FC = () => {
 
         if (response.ok && respondsWithJson) {
           responseData = await response.json();
-        } else if (!respondsWithJson || [404, 405, 501].includes(response.status)) {
-          // No audit API at this origin (a static-only deployment, or a host that
-          // answers unknown POST routes with its SPA shell). Never surface this as a
-          // rejected document: text audits continue in the in-browser engine.
+        } else if (!respondsWithJson && [404, 405, 501].includes(response.status)) {
+          // No audit API at this origin (a static-only deployment). Never surface this
+          // as a rejected document: text audits continue in the in-browser engine.
           auditApiUnavailable = true;
           console.warn(`Audit API unavailable at this origin (HTTP ${response.status}).`);
+        } else if (!respondsWithJson && response.ok) {
+          // A host that answers unknown POST routes with its SPA shell.
+          auditApiUnavailable = true;
+          console.warn('Audit API answered with a non-JSON 2xx response; treating this origin as static-only.');
+        } else if (response.status === 413) {
+          // Platform body limits reject oversized uploads before they reach the API,
+          // so this must read as "too large", never as "no API here".
+          rejectedByServer = true;
+          serverMessage =
+            'The audit request was rejected as too large (HTTP 413). Hosted deployments cap request bodies at roughly 4.5 MB — reduce the document size or paste the invoice text instead.';
+          showToast(serverMessage);
+        } else if (!respondsWithJson && response.status >= 500) {
+          // A crashed function or proxy must never look like a successful local audit.
+          upstreamError = `The audit API failed (HTTP ${response.status}). This deployment may be misconfigured — check its function logs, or run the backend locally with \`npm start\`.`;
         } else {
-          const errorBody = await response.json().catch(() => null);
+          const errorBody = respondsWithJson ? await response.json().catch(() => null) : null;
           console.warn('Audit endpoint rejected the request:', response.status, errorBody?.error);
           serverMessage = errorBody?.error || null;
           if (response.status >= 400 && response.status < 500) {
