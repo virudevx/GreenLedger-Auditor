@@ -360,6 +360,14 @@ export const App: React.FC = () => {
           } else {
             upstreamError = serverMessage || `Audit pipeline failed upstream (HTTP ${response.status}).`;
           }
+          // If the server returned a non-JSON 4xx response (e.g. an HTML error
+          // page from a proxy or a crashed function), surface the status code
+          // instead of the generic "rejected this document" fallback.
+          if (!serverMessage && !respondsWithJson) {
+            const rawBody = await response.text().catch(() => '');
+            const snippet = rawBody.slice(0, 200).replace(/\s+/g, ' ').trim();
+            serverMessage = `Audit rejected (HTTP ${response.status})${snippet ? `: ${snippet}` : ''}`;
+          }
         }
       } catch (networkError: any) {
         if (networkError?.name === 'AbortError' || runId !== runIdRef.current) return;

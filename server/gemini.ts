@@ -209,7 +209,7 @@ export function normalizeGeminiInvoice(value: unknown): ExtractedInvoice {
     claimedTotalCarbonKg: claimedTotal,
     overallSustainabilityClaims: safeStringArray(parsed.overallSustainabilityClaims),
     certificationReferences: safeStringArray(parsed.certificationReferences),
-    extractionSource: 'GEMINI_2_5_FLASH',
+    extractionSource: 'GEMINI_FLASH_LATEST',
     isFixture: false
   };
 }
@@ -228,7 +228,7 @@ export async function extractInvoiceWithGemini(
   const fixture = getDeterministicScenarioFixture(sanitizedText);
   if (fixture) {
     const modelLabel = aiClient
-      ? 'gemini-2.5-flash (demo-fixture: deterministic benchmark values)'
+      ? 'gemini-flash-lite-latest (demo-fixture: deterministic benchmark values)'
       : 'demo-deterministic-fixture';
     return { invoice: fixture, modelUsed: modelLabel };
   }
@@ -289,16 +289,43 @@ Return a JSON object with:
     }
     contents.push({ text: prompt });
 
-    // Primary extraction model: gemini-2.5-flash
-    const response = await aiClient.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents,
-      config: {
-        systemInstruction: EXTRACTION_SYSTEM_INSTRUCTION,
-        responseMimeType: 'application/json',
-        temperature: 0.1,
+    // Primary extraction model cascade: try models in order, use first that responds
+    // gemini-2.5-flash deprecated for new users → fall back to gemini-flash-lite-latest, then gemini-3.8-flash
+    const EXTRACTION_MODEL_CASCADE = ['gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+    let response: any = null;
+    let usedModel = 'gemini-flash-lite-latest';
+    let lastErr: any = null;
+
+    for (const candidate of EXTRACTION_MODEL_CASCADE) {
+      try {
+        response = await aiClient.models.generateContent({
+          model: candidate,
+          contents,
+          config: {
+            systemInstruction: EXTRACTION_SYSTEM_INSTRUCTION,
+            responseMimeType: 'application/json',
+            temperature: 0.1,
+          }
+        });
+        usedModel = candidate;
+        lastErr = null;
+        break;
+      } catch (candidateErr: any) {
+        lastErr = candidateErr;
+        const msg = String(candidateErr?.message || '');
+        // Only continue cascade on 404 (deprecated/unavailable) or 503 (overloaded)
+        if (/404|503|not found|not supported|no longer available/i.test(msg)) {
+          console.warn(`Model ${candidate} unavailable, trying next candidate: ${msg.slice(0, 80)}`);
+          continue;
+        }
+        // For auth / quota errors, throw immediately — cascade won't help
+        throw candidateErr;
       }
-    });
+    }
+
+    if (!response) {
+      throw lastErr || new Error('All extraction model candidates failed');
+    }
 
     const responseText = response.text || '';
     const invoice = normalizeGeminiInvoice(JSON.parse(responseText));
@@ -310,7 +337,7 @@ Return a JSON object with:
 
     return {
       invoice,
-      modelUsed: 'gemini-2.5-flash',
+      modelUsed: usedModel,
       tokenUsage: response.usageMetadata ? {
         promptTokens: response.usageMetadata.promptTokenCount,
         candidatesTokens: response.usageMetadata.candidatesTokenCount,
@@ -373,8 +400,8 @@ Analyze:
 3. Recommended procurement negotiation counter-measures.
 Keep response concise, strictly professional, and evidence-focused.`;
 
-  // Try gemini-3.1-pro-preview first; if unavailable/quota-limited, fall back to gemini-2.5-flash with deep reasoning
-  for (const modelCandidate of ['gemini-3.1-pro-preview', 'gemini-2.5-flash']) {
+  // Try escalation models in order; cascade on 404/503 (deprecated/overloaded)
+  for (const modelCandidate of ['gemini-3.1-pro-preview', 'gemini-3.8-flash', 'gemini-flash-lite-latest']) {
     try {
       const response = await aiClient.models.generateContent({
         model: modelCandidate,
@@ -389,7 +416,7 @@ Keep response concise, strictly professional, and evidence-focused.`;
         return {
           proAnalysis: response.text,
           escalatedSuccess: true,
-          modelUsed: modelCandidate === 'gemini-2.5-flash' ? 'gemini-2.5-flash (deep-tier)' : modelCandidate
+          modelUsed: modelCandidate
         };
       }
     } catch (modelErr: any) {

@@ -92,7 +92,7 @@ describe('Multimodal extraction for uploaded documents', () => {
       'Invoice: INV-2026-ACM-777\n1. Cold-chain freight services\nQuantity: 1200 km\nUnit price: 2.40\nTotal: 2880.00'
     );
 
-    expect(result.modelUsed).toBe('gemini-2.5-flash');
+    expect(result.modelUsed).toMatch(/gemini-flash-lite-latest|gemini-3\.8-flash|gemini-3\.1-flash-lite/);
     expect(result.invoice.vendorName).toBe('ACME Freight Ltd');
     expect(result.invoice.lineItems).toHaveLength(1);
     expect(result.invoice.totalAmount).toBe(2880);

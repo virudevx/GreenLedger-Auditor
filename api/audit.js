@@ -78986,14 +78986,14 @@ function normalizeGeminiInvoice(value) {
     claimedTotalCarbonKg: claimedTotal,
     overallSustainabilityClaims: safeStringArray(parsed.overallSustainabilityClaims),
     certificationReferences: safeStringArray(parsed.certificationReferences),
-    extractionSource: "GEMINI_2_5_FLASH",
+    extractionSource: "GEMINI_FLASH_LATEST",
     isFixture: false
   };
 }
 async function extractInvoiceWithGemini(sanitizedText, fileData) {
   const fixture = getDeterministicScenarioFixture(sanitizedText);
   if (fixture) {
-    const modelLabel = aiClient ? "gemini-2.5-flash (demo-fixture: deterministic benchmark values)" : "demo-deterministic-fixture";
+    const modelLabel = aiClient ? "gemini-flash-lite-latest (demo-fixture: deterministic benchmark values)" : "demo-deterministic-fixture";
     return { invoice: fixture, modelUsed: modelLabel };
   }
   if (!aiClient) {
@@ -79046,15 +79046,37 @@ Return a JSON object with:
       });
     }
     contents.push({ text: prompt });
-    const response = await aiClient.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents,
-      config: {
-        systemInstruction: EXTRACTION_SYSTEM_INSTRUCTION,
-        responseMimeType: "application/json",
-        temperature: 0.1
+    const EXTRACTION_MODEL_CASCADE = ["gemini-flash-lite-latest", "gemini-3.8-flash", "gemini-3.1-flash-lite"];
+    let response = null;
+    let usedModel = "gemini-flash-lite-latest";
+    let lastErr = null;
+    for (const candidate of EXTRACTION_MODEL_CASCADE) {
+      try {
+        response = await aiClient.models.generateContent({
+          model: candidate,
+          contents,
+          config: {
+            systemInstruction: EXTRACTION_SYSTEM_INSTRUCTION,
+            responseMimeType: "application/json",
+            temperature: 0.1
+          }
+        });
+        usedModel = candidate;
+        lastErr = null;
+        break;
+      } catch (candidateErr) {
+        lastErr = candidateErr;
+        const msg = String(candidateErr?.message || "");
+        if (/404|503|not found|not supported|no longer available/i.test(msg)) {
+          console.warn(`Model ${candidate} unavailable, trying next candidate: ${msg.slice(0, 80)}`);
+          continue;
+        }
+        throw candidateErr;
       }
-    });
+    }
+    if (!response) {
+      throw lastErr || new Error("All extraction model candidates failed");
+    }
     const responseText = response.text || "";
     const invoice = normalizeGeminiInvoice(JSON.parse(responseText));
     if (fileData && invoice.lineItems.length === 0) {
@@ -79062,7 +79084,7 @@ Return a JSON object with:
     }
     return {
       invoice,
-      modelUsed: "gemini-2.5-flash",
+      modelUsed: usedModel,
       tokenUsage: response.usageMetadata ? {
         promptTokens: response.usageMetadata.promptTokenCount,
         candidatesTokens: response.usageMetadata.candidatesTokenCount,
@@ -79105,7 +79127,7 @@ Analyze:
 2. Carbon-intensity greenwashing risk.
 3. Recommended procurement negotiation counter-measures.
 Keep response concise, strictly professional, and evidence-focused.`;
-  for (const modelCandidate of ["gemini-3.1-pro-preview", "gemini-2.5-flash"]) {
+  for (const modelCandidate of ["gemini-3.1-pro-preview", "gemini-3.8-flash", "gemini-flash-lite-latest"]) {
     try {
       const response = await aiClient.models.generateContent({
         model: modelCandidate,
@@ -79119,7 +79141,7 @@ Keep response concise, strictly professional, and evidence-focused.`;
         return {
           proAnalysis: response.text,
           escalatedSuccess: true,
-          modelUsed: modelCandidate === "gemini-2.5-flash" ? "gemini-2.5-flash (deep-tier)" : modelCandidate
+          modelUsed: modelCandidate
         };
       }
     } catch (modelErr) {

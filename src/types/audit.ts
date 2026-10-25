@@ -42,7 +42,7 @@ export interface SecurityGateResult {
   blockedReason?: string;
 }
 
-export type ExtractionSource = 'GEMINI_2_5_FLASH' | 'GEMINI_2_5_PRO' | 'DEMO_FIXTURE' | 'LOCAL_HEURISTIC';
+export type ExtractionSource = 'GEMINI_2_5_FLASH' | 'GEMINI_FLASH_LATEST' | 'GEMINI_2_5_PRO' | 'DEMO_FIXTURE' | 'LOCAL_HEURISTIC';
 
 export interface RawLineItem {
   id: string;
