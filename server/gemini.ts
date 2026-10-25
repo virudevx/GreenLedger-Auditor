@@ -236,7 +236,11 @@ export async function extractInvoiceWithGemini(
   // If no Gemini client is configured, use generic fallback (pasted text payloads only)
   if (!aiClient) {
     if (fileData) {
-      throw new Error('uploaded documents require a configured GEMINI_API_KEY — set it in .env, or paste the invoice text instead');
+      throw new Error(
+        'Uploaded documents require a configured GEMINI_API_KEY. ' +
+        'Set it in your .env file (obtain from https://aistudio.google.com/apikey), ' +
+        'or paste the invoice text instead to use the deterministic engine.'
+      );
     }
     return {
       invoice: parseGenericInvoiceText(sanitizedText),
@@ -318,11 +322,17 @@ Return a JSON object with:
     if (fileData) {
       // Never fabricate an invoice for an uploaded document — surface a readable failure instead.
       const detail = String(err?.message || 'unknown error');
-      const reason = detail.includes('no invoice line items')
-        ? 'no invoice line items could be read from the document (it may be a scanned image without readable text)'
-        : /quota|resource_exhausted|\b429\b/i.test(detail)
-          ? 'the Gemini API quota is exhausted (free tier allows 20 requests/day) — retry after it resets or use a billed API key'
-          : `the model could not read this document (${detail.slice(0, 160)})`;
+
+      // Check if this is an API key error (invalid/expired key)
+      const isApiKeyError = /invalid|not valid|unauthorized|permission|403|401/i.test(detail);
+
+      const reason = isApiKeyError
+        ? 'the Gemini API key is invalid or expired. Please provide a valid API key from https://aistudio.google.com/apikey, or paste the invoice text instead'
+        : detail.includes('no invoice line items')
+          ? 'no invoice line items could be read from the document (it may be a scanned image without readable text)'
+          : /quota|resource_exhausted|\b429\b/i.test(detail)
+            ? 'the Gemini API quota is exhausted (free tier allows 20 requests/day) — retry after it resets or use a billed API key'
+            : `the model could not read this document (${detail.slice(0, 160)})`;
       throw new Error(reason);
     }
     console.warn('Gemini 2.5 Flash extraction error, falling back to deterministic fixture:', err);
